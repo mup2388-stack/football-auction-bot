@@ -34,3 +34,6 @@ test_*.py
 contact_sheet*.png
 process_emojis.py
 gen_stat_emojis.py
+
+fc26_sofifa_ids_players_icons.csv
+fc26_sofifa_ids_players_icons.json
