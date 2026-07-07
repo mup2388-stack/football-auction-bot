@@ -103,7 +103,7 @@ def callback():
         return redirect("/")
     user = resp.json()
 
-    session["user_id"] = int(user["id"])
+    session["user_id"] = str(user["id"])  # Store as STRING — JSON cookie truncates big ints
     session["username"] = user.get("username", "Unknown")
     avatar_id = user.get("avatar")
     if avatar_id:
@@ -125,7 +125,7 @@ def _current_user():
     if "user_id" not in session:
         return None
     return {
-        "id": session["user_id"],
+        "id": str(session["user_id"]),  # Keep as string — JS truncates big ints
         "username": session.get("username", ""),
         "avatar_url": session.get("avatar_url", ""),
     }
@@ -136,6 +136,7 @@ def _is_manager(user_id=None):
     uid = user_id or (session.get("user_id"))
     if not uid:
         return False
+    uid = int(uid)  # Convert to int for DB query
     gid = _guild_id()
     return E.squad_count(gid, uid) > 0
 
@@ -609,7 +610,7 @@ def squad_detail(user_id):
         bench_json=_json.dumps(bench_keys),
         groups=groups,
         face_url=_face_url,
-        is_owner=_current_user() and _current_user()["id"] == user_id,
+        is_owner=_current_user() and str(_current_user()["id"]) == str(user_id),
     )
 
 
@@ -831,7 +832,8 @@ def save_lineup(target_uid):
     user = _current_user()
     if not user:
         return jsonify({"error": "Not logged in. Click Login first."}), 401
-    if user["id"] != target_uid:
+    # Compare as strings — user_id from session is a string
+    if str(user["id"]) != str(target_uid):
         return jsonify({"error": f"Not authorized. You are {user['id']}, this is {target_uid}'s squad."}), 403
 
     data = request.json
