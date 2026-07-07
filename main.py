@@ -1488,19 +1488,20 @@ async def season_setup(interaction: discord.Interaction,
     if not is_admin(interaction.user.id):
         await interaction.response.send_message(f"{EM.e('x')} Admins only.", ephemeral=True)
         return
+    await interaction.response.defer(ephemeral=True)
     guild_id = interaction.guild_id
     existing = L.active_season(guild_id)
     if existing and existing["status"] == "active":
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"{EM.e('x')} Season #{existing['number']} is already active. End it first with `/season end`.",
             ephemeral=True)
         return
     num = L.next_season_number(guild_id)
     sid = L.create_season(guild_id, fmt.value, number=num)
-    await interaction.response.send_message(
+    await interaction.followup.send(
         f"**Season {num}** created ({fmt.value}).\n"
         f"Status: **setup**. Now add teams with `/season add`.\n"
-        f"When ready, `/season start` generates all fixtures.")
+        f"When ready, `/season start` generates all fixtures.", ephemeral=True)
 
 
 @season_group.command(name="add", description="Add a team to the season")
