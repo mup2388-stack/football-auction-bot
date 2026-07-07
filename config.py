@@ -71,3 +71,5 @@ def is_admin(user_id: int) -> bool:
     if not Config.ADMIN_IDS:
         return True
     return user_id in Config.ADMIN_IDS
+
+
