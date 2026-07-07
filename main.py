@@ -124,16 +124,17 @@ PHASE_CHOICES = [
 #  Helper to start an auction from a player
 # ==========================================================================
 async def _start_auction(interaction: discord.Interaction, player: dict, starter_msg: str):
+    # This function assumes interaction has ALREADY been deferred by the caller
     if A.is_running(interaction.guild_id):
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "An auction is already running.", ephemeral=True)
         return
     if E.is_sold(interaction.guild_id, player["key"]):
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"{EM.e('x')} {player['name']} has already been sold.", ephemeral=True)
         return
     E.queue_consume(interaction.guild_id, player["key"])
-    await interaction.response.send_message(starter_msg, ephemeral=True)
+    await interaction.followup.send(starter_msg, ephemeral=True)
     a = A.Auction(interaction.guild_id, interaction.channel, player, interaction.user)
     await a.start()
     # Ping watchers
@@ -566,6 +567,8 @@ async def next_cmd(interaction: discord.Interaction):
     if not is_admin(interaction.user.id):
         await interaction.response.send_message(f"{EM.e('x')} Admins only.", ephemeral=True)
         return
+    await interaction.response.defer(ephemeral=True)
+
 
     qkey, qcount = E.queue_next(interaction.guild_id)
     if qkey:
@@ -588,7 +591,7 @@ async def next_cmd(interaction: discord.Interaction):
     offered = A.offered_keys(interaction.guild_id)
     pool = E.remaining_pool(interaction.guild_id, phase=phase, exclude=offered)
     if not pool:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"No more players available in the **{phase}** phase.", ephemeral=True)
         return
     p = pool[0]
@@ -606,9 +609,11 @@ async def drop(interaction: discord.Interaction, name: str):
     if not is_admin(interaction.user.id):
         await interaction.response.send_message(f"{EM.e('x')} Admins only.", ephemeral=True)
         return
+    await interaction.response.defer(ephemeral=True)
+
     p = P.get(name)
     if not p:
-        await interaction.response.send_message(f"{EM.e('x')} Player not found.", ephemeral=True)
+        await interaction.followup.send(f"{EM.e('x')} Player not found.", ephemeral=True)
         return
     await _start_auction(
         interaction, p,
@@ -686,20 +691,20 @@ class PoolView(discord.ui.View):
     async def select_auction(self, interaction: discord.Interaction,
                              select: discord.ui.Select):
         if not is_admin(interaction.user.id):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"{EM.e('x')} Only admins can start auctions.", ephemeral=True)
             return
         if A.is_running(self.guild_id):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "An auction is already running!", ephemeral=True)
             return
         key = select.values[0]
         p = P.get(key)
         if E.is_sold(self.guild_id, key):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"{EM.e('x')} That player has already been sold.", ephemeral=True)
             return
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"{self.starter.mention} nominates "
             f"**{P.flag(p['country'])} {p['name']}** for auction!")
         a = A.Auction(self.guild_id, interaction.channel, p, self.starter)
