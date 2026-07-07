@@ -1768,79 +1768,190 @@ a.md-pill.done .md-pill-status { color: var(--emerald); }
 }
 
 /* ===========================================================================
-   MOBILE POLISH
+   MOBILE NAV — hamburger menu (reactbits-inspired slide animation)
+   =========================================================================== */
+.nav-hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  z-index: 200;
+}
+.nav-hamburger span {
+  width: 24px;
+  height: 2px;
+  background: var(--ink-body);
+  border-radius: 2px;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nav-hamburger.active span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+  background: var(--gold);
+}
+.nav-hamburger.active span:nth-child(2) {
+  opacity: 0;
+}
+.nav-hamburger.active span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+  background: var(--gold);
+}
+
+.mobile-menu {
+  display: none;
+}
+
+/* ===========================================================================
+   RESPONSIVE — tablet + mobile
    =========================================================================== */
 @media (max-width: 768px) {
+  /* ── Nav: hide desktop links, show hamburger ─────────────── */
+  .nav-links { display: none; }
+  .nav-auth-desktop { display: none; }
+  .nav-hamburger { display: flex; }
+  .nav-inner { padding: 0 12px; }
+  .nav-brand { font-size: 18px; }
+
+  /* Mobile slide-down menu */
+  .mobile-menu {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: var(--nav-h);
+    left: 0;
+    right: 0;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    z-index: 99;
+    padding: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.16, 1, 0.3, 1), padding 0.3s;
+  }
+  .mobile-menu.open {
+    max-height: 500px;
+    padding: 8px 0 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+
+  .mobile-menu-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    color: var(--ink-body);
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    border-left: 3px solid transparent;
+    transition: all 0.15s;
+  }
+  .mobile-menu-link:hover, .mobile-menu-link.active {
+    color: var(--gold);
+    background: var(--panel);
+    border-left-color: var(--gold);
+  }
+  .mobile-menu-divider {
+    height: 1px;
+    background: var(--divider);
+    margin: 8px 20px;
+  }
+  .mobile-menu-login {
+    color: #5865F2;
+    font-weight: 700;
+  }
+
+  /* ── Layout ──────────────────────────────────────────────── */
   :root {
     --sp-6: 16px;
     --sp-8: 20px;
     --sp-12: 32px;
   }
-
   .container { padding: 0 12px; }
-  .nav-inner { gap: 12px; padding: 0 12px; }
-  .nav-brand { font-size: 18px; }
-  .nav-links { gap: 0; flex-wrap: wrap; }
-  .nav-links a { padding: 6px 8px; font-size: 11px; }
-
-  .page-title { font-size: 36px; }
-  .page-head { padding: 24px 0 16px; }
-
+  .page-title { font-size: 32px; }
+  .page-head { padding: 20px 0 12px; }
   .grid-2 { grid-template-columns: 1fr; gap: 16px; }
 
-  /* standings table: horizontal scroll */
-  .panel:has(.tbl) { padding: 0; overflow-x: auto; }
-  .tbl { font-size: 12px; }
+  /* ── Standings: horizontal scroll wrapper ────────────────── */
+  .panel:has(.tbl) { padding: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tbl { font-size: 12px; min-width: 600px; }
   .tbl th, .tbl td { padding: 8px 10px; }
   .tbl th { font-size: 10px; }
 
-  /* season banner */
-  .season-banner { padding: 20px; }
-  .season-meta { gap: 16px; }
-  .season-stat-val { font-size: 20px; }
+  /* ── Season banner ───────────────────────────────────────── */
+  .season-banner { padding: 16px; }
+  .season-meta { gap: 12px; }
+  .season-stat-val { font-size: 18px; }
+  .season-format { font-size: 24px; }
 
-  /* formation side by side becomes stacked */
-  .formation-section { flex-direction: column; }
+  /* ── Formation: stacked ──────────────────────────────────── */
+  .formation-section { flex-direction: column; gap: 16px; }
   .pitch-wrap { flex: 1 1 100%; max-width: 100%; }
 
-  /* player detail */
-  .player-hero-content { padding: 20px; gap: 16px; flex-direction: column; text-align: center; }
-  .player-hero-face { width: 80px; height: 80px; }
-  .player-hero-name { font-size: 28px; }
-
-  /* stat groups: 1 column */
+  /* ── Player detail ───────────────────────────────────────── */
+  .player-hero-content { padding: 16px; gap: 12px; flex-direction: column; text-align: center; }
+  .player-hero-face { width: 72px; height: 72px; }
+  .player-hero-name { font-size: 24px; }
+  .player-hero-meta { justify-content: center; font-size: 13px; }
   .stat-bar-row { flex-wrap: wrap; }
   .stat-bar-label { width: 100%; }
+  .match-stats-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .match-stat { padding: 8px; }
+  .match-stat-val { font-size: 22px; }
 
-  /* match stats: 2 columns on mobile */
-  .match-stats-grid { grid-template-columns: repeat(3, 1fr); }
-
-  /* players grid: 1 column */
+  /* ── Players grid ────────────────────────────────────────── */
   .players-grid { grid-template-columns: 1fr; }
+  .player-filters { gap: 8px; }
+  .filter-search { min-width: 100%; }
+  .filter-select { font-size: 12px; padding: 8px 12px; }
 
-  /* squad detail position groups: 1 column */
+  /* ── Squad detail positions ──────────────────────────────── */
   .squad-detail-positions { grid-template-columns: 1fr !important; }
+  .squad-header-logo { width: 56px; height: 56px; }
 
-  /* scorer cards: stack vertically */
-  .scorer-card { flex-wrap: wrap; }
+  /* ── Scorers ─────────────────────────────────────────────── */
+  .scorer-card { flex-wrap: wrap; padding: 12px; }
   .scorer-stats-mini { width: 100%; justify-content: flex-start; margin-top: 8px; }
 
-  /* fixtures: smaller */
+  /* ── Fixtures ────────────────────────────────────────────── */
   .fixture-card { padding: 10px 8px; gap: 6px; }
   .fx-team-name { font-size: 12px; }
   .fx-score { font-size: 16px; }
   .fx-logo { width: 20px; height: 20px; }
+  .md-pills { gap: 4px; }
+  a.md-pill { padding: 6px 10px; min-width: 44px; }
+  .md-pill-num { font-size: 12px; }
 
-  /* bracket: scroll horizontally (already handled) */
-  .bracket-grid { gap: 16px; }
-  .bracket-col { min-width: 160px; }
-  .bracket-match { min-width: 140px; }
+  /* ── Bracket ─────────────────────────────────────────────── */
+  .bk-col { padding: 0 14px; }
+  .bk-col-wrap { padding: 0 14px; }
+  .bk-label { padding: 0 14px; font-size: 8px; }
+  .bk-col-matches { padding: 0 14px; }
+  .bk-match { width: 72px; }
+  .bk-final { width: 78px; }
 
-  /* hide text-3d shadow on mobile (performance + readability) */
+  /* ── Footer ──────────────────────────────────────────────── */
+  .footer { padding: 16px 0; font-size: 12px; }
+
+  /* ── Simplify 3D text for performance ────────────────────── */
   .text-3d { text-shadow: 1px 1px 0 var(--gold-dim), 2px 2px 4px rgba(0,0,0,0.5); }
 }
 
+/* ===========================================================================
+   PHONE — small screens (iPhone, etc.)
+   =========================================================================== */
 @media (max-width: 480px) {
-  .nav-links a { padding: 6px 6px; font-size: 10px; letter-spacing: 0; }
+  .page-title { font-size: 26px; }
   .match-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .nav-brand { font-size: 16px; }
+  .season-format { font-size: 20px; }
+  .player-hero-name { font-size: 22px; }
+  .pitch { max-width: 100%; }
+  .pitch-face { width: 38px; height: 38px; }
+  .pitch-player-name { font-size: 9px; max-width: 60px; }
+  .pitch-player-pos { font-size: 8px; }
+  .filter-select { width: 100%; }
+  .player-filters { flex-direction: column; }
 }
