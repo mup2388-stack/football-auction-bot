@@ -26,8 +26,20 @@ class _DictCursor:
     def _row_to_dict(self, row):
         if row is None:
             return None
-        cols = [d[0] for d in self._cur.description]
-        return {cols[i]: row[i] for i in range(len(cols))}
+        # If already a dict, return as-is
+        if isinstance(row, dict):
+            return row
+        # If it's a sqlite3.Row, convert
+        if hasattr(row, "keys"):
+            return {k: row[k] for k in row.keys()}
+        # If it's a tuple, use cursor description for column names
+        cols = []
+        if self._cur.description:
+            cols = [d[0] for d in self._cur.description]
+        if cols and len(cols) == len(row):
+            return {cols[i]: row[i] for i in range(len(row))}
+        # Fallback: return as-is (shouldn't happen normally)
+        return row
 
     def execute(self, sql, params=()):
         return self._cur.execute(sql, params)
@@ -135,7 +147,14 @@ def _columns(table: str):
     """Return the set of column names for an existing table."""
     with cursor() as c:
         rows = c.execute(f"PRAGMA table_info({table})").fetchall()
-    return {r["name"] for r in rows}
+    # Handle both dict rows and tuple rows (libsql PRAGMA may return tuples)
+    result = set()
+    for r in rows:
+        if isinstance(r, dict):
+            result.add(r["name"])
+        elif isinstance(r, (tuple, list)) and len(r) > 1:
+            result.add(r[1])  # PRAGMA table_info column 1 = name
+    return result
 
 
 def _add_column(table: str, column: str, definition: str):
