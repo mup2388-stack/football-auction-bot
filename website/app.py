@@ -35,6 +35,11 @@ app = Flask(
 )
 app.secret_key = Config.FLASK_SECRET_KEY
 
+# Fix: Render terminates HTTPS at proxy. Flask sees http:// internally.
+# This makes request.host_url and request.scheme return https:// correctly.
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
 OAUTH_AUTH_URL = "https://discord.com/api/oauth2/authorize"
 OAUTH_TOKEN_URL = "https://discord.com/api/oauth2/token"
 OAUTH_SCOPES = ["identify", "guilds"]
@@ -56,12 +61,12 @@ def add_no_cache_headers(resp):
 # ===========================================================================
 
 def _oauth_session(state=None, token=None):
-    # Build redirect URI dynamically — uses request host if env var not set
-    # This prevents the localhost fallback on deployed servers
-    redirect_uri = Config.OAUTH_REDIRECT_URI
-    if not redirect_uri or "localhost" in redirect_uri:
-        # Auto-detect from the current request
-        redirect_uri = request.host_url.rstrip('/') + '/callback'
+    # Build redirect URI dynamically — uses request host, forces HTTPS
+    host = request.host_url.rstrip("/")
+    # Force HTTPS (Render terminates SSL at proxy, Flask sees http://)
+    if host.startswith("http://") and "localhost" not in host:
+        host = "https://" + host[7:]
+    redirect_uri = host + "/callback"
     return OAuth2Session(
         Config.OAUTH_CLIENT_ID,
         redirect_uri=redirect_uri,

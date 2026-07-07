@@ -1,11 +1,6 @@
-# Render Blueprint — Bot + Website in one web service.
-#
-# The free plan works but the filesystem is EPHEMERAL (wipes on restart).
-# For your SQLite DB + face cache to survive, add a Persistent Disk ($1/mo):
-#   Dashboard → your service → Disks → Add Disk → 1GB → mount at /opt/data
-# Then set DB_PATH=/opt/data/auction.db in environment variables.
-#
-# To prevent sleeping: set up UptimeRobot to ping your URL every 10 min.
+# Render Blueprint — Bot + Website with Turso cloud database
+# The free plan works because Turso stores data externally.
+# Data survives restarts permanently (no ephemeral disk needed).
 services:
   - type: web
     name: auction-bot
@@ -27,10 +22,13 @@ services:
         sync: false
       - key: DISCORD_CLIENT_SECRET
         sync: false
-      - key: DISCORD_REDIRECT_URI
-        sync: false
       - key: WEBHOOK_URL
         sync: false
-      # If you add a persistent disk, uncomment these:
-      # - key: DB_PATH
-      #   value: /opt/data/auction.db
+      # Turso cloud database (survives restarts):
+      - key: TURSO_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+      # OAuth redirect (leave empty, auto-detected from request):
+      - key: OAUTHLIB_INSECURE_TRANSPORT
+        value: "0"

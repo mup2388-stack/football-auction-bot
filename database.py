@@ -1,9 +1,16 @@
 """
-SQLite persistence layer. File-based (data/auction.db) so there is no
-external database to provision or pay for. Easily handles 20-30+ managers
-each holding 15-30 players across multiple auction phases.
+SQLite persistence layer. Supports two modes:
+
+1. LOCAL (default): file-based SQLite at data/auction.db
+   - Set DB_PATH in env (default: data/auction.db)
+
+2. TURSO CLOUD (persistent, survives restarts on Render/Heroku):
+   - Set TURSO_URL and TURSO_AUTH_TOKEN in your env vars
+   - Uses embedded replica: local file for speed + cloud sync for persistence
+   - Data survives restarts, never wipes
+
+Both modes use the exact same sqlite3-compatible API.
 """
-import sqlite3
 import threading
 from contextlib import contextmanager
 
@@ -12,17 +19,54 @@ from config import Config
 _local = threading.local()
 
 
-def _connect() -> sqlite3.Connection:
+def _connect():
+    """Connect to SQLite (local) or libSQL (Turso cloud) depending on env vars."""
     conn = getattr(_local, "conn", None)
-    if conn is None:
-        import os
+    if conn is not None:
+        return conn
+
+    import os
+
+    turso_url = os.getenv("TURSO_URL", "")
+    turso_token = os.getenv("TURSO_AUTH_TOKEN", "")
+
+    if turso_url and turso_token:
+        # ── Turso cloud mode (embedded replica) ──
+        # Local file for fast reads + cloud sync for persistence
+        import libsql
+        local_path = Config.DB_PATH
+        os.makedirs(os.path.dirname(local_path) or ".", exist_ok=True)
+        conn = libsql.connect(
+            local_path,
+            sync_url=turso_url,
+            auth_token=turso_token,
+        )
+        # Pull latest from cloud on connect
+        try:
+            conn.sync()
+        except Exception:
+            pass  # first run, no cloud data yet
+        conn.row_factory = _row_factory
+        print(f"[✓] Connected to Turso cloud: {turso_url}")
+    else:
+        # ── Local SQLite mode ──
+        import sqlite3
         os.makedirs(os.path.dirname(Config.DB_PATH) or ".", exist_ok=True)
         conn = sqlite3.connect(Config.DB_PATH, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA foreign_keys=ON;")
-        _local.conn = conn
+
+    _local.conn = conn
     return conn
+
+
+# Row factory that works with both sqlite3 and libsql
+try:
+    import sqlite3
+    _row_factory = sqlite3.Row
+except Exception:
+    _row_factory = None
 
 
 @contextmanager
@@ -32,6 +76,12 @@ def cursor():
     try:
         yield cur
         conn.commit()
+        # If Turso, sync changes to cloud
+        if hasattr(conn, "sync"):
+            try:
+                conn.sync()
+            except Exception:
+                pass
     except Exception:
         conn.rollback()
         raise
@@ -173,6 +223,15 @@ def init_db():
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_stats_season "
             "ON player_match_stats (guild_id, season_id, player_key)"
         )
+
+    # Sync to Turso after migration
+    conn = _connect()
+    if hasattr(conn, "sync"):
+        try:
+            conn.sync()
+            print("[✓] Database synced to Turso cloud")
+        except Exception as e:
+            print(f"[!] Turso sync warning: {e}")
 
 
 # --------------------------------------------------------------------------
