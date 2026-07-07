@@ -1,0 +1,25 @@
+# systemd service for any Linux box / VPS (Oracle Cloud, Raspberry Pi, etc.)
+#
+# 1) Adjust WorkingDirectory, ExecStart paths and the User below to match your setup.
+# 2) sudo cp football-auction.service /etc/systemd/system/
+# 3) sudo systemctl daemon-reload
+# 4) sudo systemctl enable --now football-auction
+# 5) journalctl -u football-auction -f   (to watch logs)
+
+[Unit]
+Description=Football Auction Discord Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/auction
+# Put secrets in a .env next to the code (DISCORD_TOKEN, optional GUILD_ID, ADMIN_IDS)
+EnvironmentFile=/home/ubuntu/auction/.env
+ExecStart=/home/ubuntu/auction/.venv/bin/python main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}{{ team_name }} &middot; AuctionBot{% endblock %}
+
+{% block content %}
+<div class="page-head reveal">
+  <div style="display: flex; align-items: center; gap: 20px;">
+    <img src="{{ logo_url }}" class="squad-header-logo" alt="">
+    <div>
+      <h1 class="page-title text-chrome">{{ team_name }}</h1>
+      <p class="page-sub">{{ squad_size }} players &middot; {{ squad_value }} value &middot; {{ budget }} budget &middot; Power {{ power_rating }}/100</p>
+    </div>
+  </div>
+</div>
+
+{% if is_owner %}
+<div class="edit-controls reveal">
+  <select id="formation-select" class="filter-select">
+    {% for f in formations_list %}
+    <option value="{{ f }}" {{ 'selected' if f == formation_name else '' }}>{{ f }}</option>
+    {% endfor %}
+  </select>
+  <button id="btn-edit" class="filter-btn" onclick="LE.toggleEdit()">Edit Lineup</button>
+  <button id="btn-save" class="filter-btn" style="display:none; background: var(--emerald);" onclick="LE.save()">Save Lineup</button>
+  <button id="btn-cancel" class="filter-clear" style="display:none;" onclick="LE.cancel()">Cancel</button>
+</div>
+{% endif %}
+
+<div class="formation-section reveal">
+  <div class="pitch-wrap">
+    <div class="formation-label" id="formation-label">{{ formation_name | upper }} STARTING XI</div>
+    <div class="pitch" id="pitch"></div>
+  </div>
+  <div class="bench-section">
+    <div class="bench-label">SUBSTITUTES</div>
+    <div class="bench-list" id="bench-list"></div>
+  </div>
+</div>
+
+<div class="squad-detail-positions" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px;">
+  {% for group_key, label in [('GK', 'Goalkeepers'), ('DEF', 'Defenders'), ('MID', 'Midfielders'), ('FWD', 'Forwards')] %}
+  {% if groups[group_key] %}
+  <div class="panel glow-card reveal">
+    <div class="panel-title">{{ label }} ({{ groups[group_key]|length }})</div>
+    <div class="reveal-stagger">
+      {% for p in groups[group_key] %}
+      <a href="/player/{{ p.key }}" class="player-row-link">
+        <div class="player-row">
+          <img src="{{ face_url(p.key) }}" class="player-row-face" alt="">
+          <span class="ovr-badge {% if p.ovr >= 90 %}ovr-90{% elif p.ovr >= 80 %}ovr-80{% elif p.ovr >= 70 %}ovr-70{% else %}ovr-low{% endif %}">{{ p.ovr }}</span>
+          <div class="player-row-info">
+            <div class="player-row-name">{{ p.name }}</div>
+            <div class="player-row-pos">{{ p.position }} &middot; {{ p.get('country', '') }}</div>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+{% if is_owner %}
+<script>
+const FORMATIONS = {{ formations_json | safe }};
+const ROSTER = {{ roster_json | safe }};
+const SQUAD_USER_ID = "{{ user_id }}";
+window.__LINEUP__ = {{ lineup_json | safe }};
+window.__BENCH__ = {{ bench_json | safe }};
+</script>
+<script src="{{ url_for('static', filename='js/lineup-editor.js') }}"></script>
+{% else %}
+<script>
+const FORMATIONS = {{ formations_json | safe }};
+const ROSTER = {{ roster_json | safe }};
+window.__LINEUP__ = {{ lineup_json | safe }};
+window.__BENCH__ = {{ bench_json | safe }};
+</script>
+<script>
+// read-only render
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const fmt = params.get('formation') || '{{ formation_name }}';
+  const lineup = window.__LINEUP__;
+  const bench = window.__BENCH__;
+  const slots = FORMATIONS[fmt] || [];
+
+  const pitch = document.getElementById('pitch');
+  pitch.innerHTML = '';
+  slots.forEach((slot, i) => {
+    const playerKey = lineup[i];
+    const div = document.createElement('div');
+    div.className = 'pitch-player';
+    div.style.left = (slot.x * 100) + '%';
+    div.style.top = (slot.y * 100) + '%';
+    if (playerKey && ROSTER[playerKey]) {
+      const p = ROSTER[playerKey];
+      div.innerHTML = `<a href="/player/${playerKey}" class="pitch-link">
+        <img src="${p.face_url}" class="pitch-face" alt="">
+        <span class="pitch-player-name">${p.name}</span>
+        <span class="pitch-player-pos">${slot.pos}</span>
+      </a>`;
+    } else {
+      div.innerHTML = `<div class="pitch-empty">${slot.pos}</div>`;
+    }
+    pitch.appendChild(div);
+  });
+
+  const benchEl = document.getElementById('bench-list');
+  benchEl.innerHTML = '';
+  bench.forEach(key => {
+    const p = ROSTER[key];
+    if (!p) return;
+    const div = document.createElement('a');
+    div.href = '/player/' + key;
+    div.className = 'bench-player';
+    div.style.textDecoration = 'none';
+    div.innerHTML = `<img src="${p.face_url}" class="bench-face" alt="">
+      <span class="bench-name">${p.name}</span>
+      <span class="bench-pos">${p.pos}</span>`;
+    benchEl.appendChild(div);
+  });
+});
+</script>
+{% endif %}
+{% endblock %}

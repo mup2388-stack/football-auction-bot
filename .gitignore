@@ -1,0 +1,36 @@
+# ==========================================
+#  DEPLOYMENT .gitignore
+#  Copy this to .gitignore BEFORE pushing to GitHub
+# ==========================================
+
+# Large folders not needed at runtime
+uploads/
+skills/
+*.bak
+
+# Runtime data (regenerated on server)
+data/auction.db
+data/auction.db-wal
+data/faces/
+
+# Environment
+.env
+.env.local
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+test_*.py
+*_preview.png
+contact_sheet*.png
+process_emojis.py
+gen_stat_emojis.py

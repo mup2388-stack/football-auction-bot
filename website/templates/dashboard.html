@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Dashboard &middot; FL26{% endblock %}
+
+{% block content %}
+
+{# ── Hero Title ─────────────────────────────────────────────────────────────── #}
+<div class="page-head reveal">
+  <h1 class="page-title text-3d">Dashboard</h1>
+  <p class="page-sub">Live league overview</p>
+</div>
+
+{# ── Season Banner with dot field background ──────────────────────────────── #}
+{% if season %}
+<div class="season-banner reveal">
+  <div class="season-format text-chrome" data-text="{{ season.format | replace('_',' ') | title }}">{{ season.format | replace('_',' ') | title }}</div>
+  <div class="page-sub" style="margin-top: 8px;">Season {{ season.number }} &middot; {{ season.status }}</div>
+  <div class="season-meta">
+    <div class="season-stat">
+      <span class="season-stat-val" data-countup="{{ season_stat.teams }}">{{ season_stat.teams }}</span>
+      <span class="season-stat-lbl">Teams</span>
+    </div>
+    <div class="season-stat">
+      <span class="season-stat-val" data-countup="{{ season_stat.played }}">{{ season_stat.played }}</span>
+      <span class="season-stat-lbl">Played</span>
+    </div>
+    <div class="season-stat">
+      <span class="season-stat-val" data-countup="{{ season_stat.total }}">{{ season_stat.total }}</span>
+      <span class="season-stat-lbl">Fixtures</span>
+    </div>
+  </div>
+  {% if season_stat.total > 0 %}
+  <div class="progress">
+    <div class="progress-fill" style="width: {{ (season_stat.played / season_stat.total * 100) | round }}%"></div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ── Main grid: scorers + fixtures ────────────────────────────────────────── #}
+<div class="grid-2">
+  {# Top Scorers #}
+  <div class="panel glow-card reveal">
+    <div class="panel-title">Golden Boot</div>
+    {% if scorers %}
+    <div class="reveal-stagger">
+      {% for s in scorers[:5] %}
+      <div class="scorer-row">
+        <span class="scorer-rank">{{ loop.index }}</span>
+        <img class="scorer-face" src="{{ s.face_url }}" alt="" onerror="this.src='/face/placeholder'">
+        <div class="scorer-info">
+          <div class="scorer-name">{{ s.name }}</div>
+          <div class="scorer-club">{{ s.club }}</div>
+        </div>
+        <div class="scorer-goals">{{ s.goals }}<small>goals</small></div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty"><p>No goals scored yet.</p></div>
+    {% endif %}
+  </div>
+
+  {# Fixtures #}
+  <div class="panel glow-card reveal">
+    <div class="panel-title">Upcoming</div>
+    {% if fixtures %}
+    <div class="reveal-stagger">
+      {% for f in fixtures[:5] %}
+      <div class="fixture-row">
+        <div class="fixture-team home">
+          {% if f.home_logo %}<img src="{{ f.home_logo }}" class="team-logo" alt="">{% endif %}
+          <span>{{ f.home_name }}</span>
+        </div>
+        <div class="fixture-vs">vs</div>
+        <div class="fixture-team away">
+          <span>{{ f.away_name }}</span>
+          {% if f.away_logo %}<img src="{{ f.away_logo }}" class="team-logo" alt="">{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty"><p>No upcoming fixtures.</p></div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Recent Results + Latest Sale ─────────────────────────────────────────── #}
+<div class="grid-2" style="margin-top: 24px;">
+  <div class="panel glow-card reveal">
+    <div class="panel-title">Recent Results</div>
+    {% if results %}
+    <div class="reveal-stagger">
+      {% for f in results[:5] %}
+      <div class="fixture-row">
+        <div class="fixture-team {{ 'winner' if f.home_score > f.away_score else '' }}">
+          {% if f.home_logo %}<img src="{{ f.home_logo }}" class="team-logo" alt="">{% endif %}
+          <span>{{ f.home_name }}</span>
+        </div>
+        <div class="fixture-score">{{ f.home_score }} - {{ f.away_score }}</div>
+        <div class="fixture-team away {{ 'winner' if f.away_score > f.home_score else '' }}">
+          <span>{{ f.away_name }}</span>
+          {% if f.away_logo %}<img src="{{ f.away_logo }}" class="team-logo" alt="">{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty"><p>No matches played yet.</p></div>
+    {% endif %}
+  </div>
+
+  <div class="panel glow-card reveal">
+    <div class="panel-title">Top Signings</div>
+    {% if top_signings %}
+    <div class="signing-carousel" id="signing-carousel">
+      {% for s in top_signings %}
+      <div class="signing-slide {{ 'active' if loop.index == 1 else '' }}" data-index="{{ loop.index0 }}">
+        <img class="sale-face" src="{{ s.face_url }}" alt="">
+        <div class="sale-info">
+          <div class="sale-name">{{ s.name }}</div>
+          <div class="sale-team">{{ s.team }} &middot; {{ s.position }}</div>
+        </div>
+        <div class="sale-price">{{ s.price }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% if top_signings|length > 1 %}
+    <div class="carousel-dots">
+      {% for s in top_signings %}
+      <span class="carousel-dot {{ 'active' if loop.index == 1 else '' }}" data-index="{{ loop.index0 }}"></span>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="empty"><p>No auctions yet.</p></div>
+    {% endif %}
+  </div>
+
+  <div class="panel glow-card reveal">
+    <div class="panel-title">Recent Sales</div>
+    {% if recent_sales_list %}
+    <div class="reveal-stagger">
+      {% for s in recent_sales_list %}
+      <div class="scorer-row">
+        <img class="scorer-face" src="{{ s.face_url }}" alt="">
+        <div class="scorer-info">
+          <div class="scorer-name">{{ s.name }}</div>
+          <div class="scorer-club">{{ s.team }} &middot; {{ s.position }}</div>
+        </div>
+        <div class="scorer-goals">{{ s.price }}<small>paid</small></div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty"><p>No sales yet.</p></div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,2567 @@
+[
+  {
+    "name": "Lamine Yamal",
+    "position": "RW",
+    "club": "Barcelona",
+    "country": "Spain",
+    "ovr": 86,
+    "stats": {
+      "pac": 89,
+      "sho": 80,
+      "pas": 82,
+      "dri": 90,
+      "def": 36,
+      "phy": 64
+    }
+  },
+  {
+    "name": "Emiliano Martínez",
+    "position": "GK",
+    "club": "Aston Villa",
+    "country": "Argentina",
+    "ovr": 86,
+    "stats": {
+      "div": 86,
+      "han": 86,
+      "kic": 82,
+      "ref": 87,
+      "spd": 50,
+      "pos": 86
+    }
+  },
+  {
+    "name": "Unai Simón",
+    "position": "GK",
+    "club": "Athletic Club",
+    "country": "Spain",
+    "ovr": 85,
+    "stats": {
+      "div": 85,
+      "han": 84,
+      "kic": 82,
+      "ref": 87,
+      "spd": 52,
+      "pos": 85
+    }
+  },
+  {
+    "name": "Cristian Romero",
+    "position": "CB",
+    "club": "Tottenham Hotspur",
+    "country": "Argentina",
+    "ovr": 85,
+    "stats": {
+      "pac": 82,
+      "sho": 48,
+      "pas": 72,
+      "dri": 74,
+      "def": 87,
+      "phy": 84
+    }
+  },
+  {
+    "name": "Jeremie Frimpong",
+    "position": "RW",
+    "club": "Liverpool",
+    "country": "Netherlands",
+    "ovr": 85,
+    "stats": {
+      "pac": 95,
+      "sho": 74,
+      "pas": 78,
+      "dri": 85,
+      "def": 42,
+      "phy": 68
+    }
+  },
+  {
+    "name": "Bremer",
+    "position": "CB",
+    "club": "Juventus",
+    "country": "Brazil",
+    "ovr": 85,
+    "stats": {
+      "pac": 83,
+      "sho": 40,
+      "pas": 68,
+      "dri": 68,
+      "def": 87,
+      "phy": 86
+    }
+  },
+  {
+    "name": "Omar Marmoush",
+    "position": "ST",
+    "club": "Manchester City",
+    "country": "Egypt",
+    "ovr": 85,
+    "stats": {
+      "pac": 90,
+      "sho": 84,
+      "pas": 74,
+      "dri": 84,
+      "def": 40,
+      "phy": 78
+    }
+  },
+  {
+    "name": "Dayot Upamecano",
+    "position": "CB",
+    "club": "Bayern München",
+    "country": "France",
+    "ovr": 85,
+    "stats": {
+      "pac": 86,
+      "sho": 42,
+      "pas": 70,
+      "dri": 74,
+      "def": 85,
+      "phy": 84
+    }
+  },
+  {
+    "name": "Joško Gvardiol",
+    "position": "CB",
+    "club": "Manchester City",
+    "country": "Croatia",
+    "ovr": 85,
+    "stats": {
+      "pac": 79,
+      "sho": 55,
+      "pas": 74,
+      "dri": 76,
+      "def": 85,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Alexis Mac Allister",
+    "position": "CM",
+    "club": "Liverpool",
+    "country": "Argentina",
+    "ovr": 85,
+    "stats": {
+      "pac": 72,
+      "sho": 78,
+      "pas": 85,
+      "dri": 86,
+      "def": 72,
+      "phy": 72
+    }
+  },
+  {
+    "name": "Dominik Szoboszlai",
+    "position": "CM",
+    "club": "Liverpool",
+    "country": "Hungary",
+    "ovr": 84,
+    "stats": {
+      "pac": 84,
+      "sho": 80,
+      "pas": 82,
+      "dri": 83,
+      "def": 62,
+      "phy": 78
+    }
+  },
+  {
+    "name": "Dani Olmo",
+    "position": "CAM",
+    "club": "Barcelona",
+    "country": "Spain",
+    "ovr": 85,
+    "stats": {
+      "pac": 80,
+      "sho": 81,
+      "pas": 84,
+      "dri": 88,
+      "def": 52,
+      "phy": 66
+    }
+  },
+  {
+    "name": "Xavi Simons",
+    "position": "CAM",
+    "club": "RB Leipzig",
+    "country": "Netherlands",
+    "ovr": 84,
+    "stats": {
+      "pac": 86,
+      "sho": 78,
+      "pas": 82,
+      "dri": 87,
+      "def": 52,
+      "phy": 66
+    }
+  },
+  {
+    "name": "Granit Xhaka",
+    "position": "CM",
+    "club": "Bayer Leverkusen",
+    "country": "Switzerland",
+    "ovr": 84,
+    "stats": {
+      "pac": 68,
+      "sho": 76,
+      "pas": 86,
+      "dri": 80,
+      "def": 80,
+      "phy": 80
+    }
+  },
+  {
+    "name": "Marc Guehi",
+    "position": "CB",
+    "club": "Manchester City",
+    "country": "England",
+    "ovr": 84,
+    "stats": {
+      "pac": 80,
+      "sho": 40,
+      "pas": 72,
+      "dri": 74,
+      "def": 85,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Micky van de Ven",
+    "position": "CB",
+    "club": "Tottenham Hotspur",
+    "country": "Netherlands",
+    "ovr": 84,
+    "stats": {
+      "pac": 92,
+      "sho": 40,
+      "pas": 68,
+      "dri": 70,
+      "def": 82,
+      "phy": 80
+    }
+  },
+  {
+    "name": "Lisandro Martínez",
+    "position": "CB",
+    "club": "Manchester United",
+    "country": "Argentina",
+    "ovr": 84,
+    "stats": {
+      "pac": 80,
+      "sho": 48,
+      "pas": 78,
+      "dri": 80,
+      "def": 84,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Milos Kerkez",
+    "position": "LB",
+    "club": "Liverpool",
+    "country": "Hungary",
+    "ovr": 84,
+    "stats": {
+      "pac": 88,
+      "sho": 52,
+      "pas": 76,
+      "dri": 82,
+      "def": 78,
+      "phy": 76
+    }
+  },
+  {
+    "name": "N'Golo Kanté",
+    "position": "CDM",
+    "club": "Al-Ittihad",
+    "country": "France",
+    "ovr": 84,
+    "stats": {
+      "pac": 80,
+      "sho": 66,
+      "pas": 78,
+      "dri": 82,
+      "def": 84,
+      "phy": 80
+    }
+  },
+  {
+    "name": "Bruno Guimarães",
+    "position": "CM",
+    "club": "Newcastle United",
+    "country": "Brazil",
+    "ovr": 84,
+    "stats": {
+      "pac": 74,
+      "sho": 74,
+      "pas": 84,
+      "dri": 86,
+      "def": 76,
+      "phy": 80
+    }
+  },
+  {
+    "name": "Enzo Fernández",
+    "position": "CM",
+    "club": "Chelsea",
+    "country": "Argentina",
+    "ovr": 84,
+    "stats": {
+      "pac": 72,
+      "sho": 74,
+      "pas": 84,
+      "dri": 82,
+      "def": 74,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Moisés Caicedo",
+    "position": "CDM",
+    "club": "Chelsea",
+    "country": "Ecuador",
+    "ovr": 84,
+    "stats": {
+      "pac": 80,
+      "sho": 64,
+      "pas": 80,
+      "dri": 80,
+      "def": 84,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Kingsley Coman",
+    "position": "LW",
+    "club": "Al-Nassr",
+    "country": "France",
+    "ovr": 84,
+    "stats": {
+      "pac": 93,
+      "sho": 76,
+      "pas": 80,
+      "dri": 87,
+      "def": 34,
+      "phy": 72
+    }
+  },
+  {
+    "name": "Serge Gnabry",
+    "position": "RW",
+    "club": "Bayern München",
+    "country": "Germany",
+    "ovr": 84,
+    "stats": {
+      "pac": 88,
+      "sho": 82,
+      "pas": 80,
+      "dri": 86,
+      "def": 42,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Karim Benzema",
+    "position": "ST",
+    "club": "Al-Ittihad",
+    "country": "France",
+    "ovr": 84,
+    "stats": {
+      "pac": 76,
+      "sho": 86,
+      "pas": 80,
+      "dri": 86,
+      "def": 40,
+      "phy": 80
+    }
+  },
+  {
+    "name": "İlkay Gündoğan",
+    "position": "CM",
+    "club": "Barcelona",
+    "country": "Germany",
+    "ovr": 84,
+    "stats": {
+      "pac": 73,
+      "sho": 80,
+      "pas": 88,
+      "dri": 86,
+      "def": 64,
+      "phy": 72
+    }
+  },
+  {
+    "name": "Denzel Dumfries",
+    "position": "RB",
+    "club": "Inter",
+    "country": "Netherlands",
+    "ovr": 84,
+    "stats": {
+      "pac": 88,
+      "sho": 68,
+      "pas": 76,
+      "dri": 78,
+      "def": 80,
+      "phy": 84
+    }
+  },
+  {
+    "name": "Andy Robertson",
+    "position": "LB",
+    "club": "Tottenham Hotspur",
+    "country": "Scotland",
+    "ovr": 84,
+    "stats": {
+      "pac": 88,
+      "sho": 62,
+      "pas": 83,
+      "dri": 83,
+      "def": 78,
+      "phy": 78
+    }
+  },
+  {
+    "name": "Tijjani Reijnders",
+    "position": "CM",
+    "club": "AC Milan",
+    "country": "Netherlands",
+    "ovr": 84,
+    "stats": {
+      "pac": 78,
+      "sho": 76,
+      "pas": 82,
+      "dri": 82,
+      "def": 70,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Yann Sommer",
+    "position": "GK",
+    "club": "Inter",
+    "country": "Switzerland",
+    "ovr": 84,
+    "stats": {
+      "div": 82,
+      "han": 82,
+      "kic": 80,
+      "ref": 85,
+      "spd": 45,
+      "pos": 85
+    }
+  },
+  {
+    "name": "Gregor Kobel",
+    "position": "GK",
+    "club": "Borussia Dortmund",
+    "country": "Switzerland",
+    "ovr": 84,
+    "stats": {
+      "div": 83,
+      "han": 82,
+      "kic": 80,
+      "ref": 86,
+      "spd": 52,
+      "pos": 84
+    }
+  },
+  {
+    "name": "David Raya",
+    "position": "GK",
+    "club": "Arsenal",
+    "country": "Spain",
+    "ovr": 84,
+    "stats": {
+      "div": 82,
+      "han": 82,
+      "kic": 80,
+      "ref": 85,
+      "spd": 50,
+      "pos": 84
+    }
+  },
+  {
+    "name": "Diogo Costa",
+    "position": "GK",
+    "club": "FC Porto",
+    "country": "Portugal",
+    "ovr": 84,
+    "stats": {
+      "div": 84,
+      "han": 82,
+      "kic": 82,
+      "ref": 86,
+      "spd": 53,
+      "pos": 84
+    }
+  },
+  {
+    "name": "Cody Gakpo",
+    "position": "LW",
+    "club": "Liverpool",
+    "country": "Netherlands",
+    "ovr": 84,
+    "stats": {
+      "pac": 88,
+      "sho": 81,
+      "pas": 78,
+      "dri": 85,
+      "def": 44,
+      "phy": 78
+    }
+  },
+  {
+    "name": "Kaoru Mitoma",
+    "position": "LW",
+    "club": "Brighton",
+    "country": "Japan",
+    "ovr": 84,
+    "stats": {
+      "pac": 88,
+      "sho": 78,
+      "pas": 80,
+      "dri": 88,
+      "def": 38,
+      "phy": 66
+    }
+  },
+  {
+    "name": "Takefusa Kubo",
+    "position": "RW",
+    "club": "Real Sociedad",
+    "country": "Japan",
+    "ovr": 84,
+    "stats": {
+      "pac": 88,
+      "sho": 78,
+      "pas": 78,
+      "dri": 87,
+      "def": 38,
+      "phy": 66
+    }
+  },
+  {
+    "name": "Anthony Gordon",
+    "position": "LW",
+    "club": "Newcastle United",
+    "country": "England",
+    "ovr": 84,
+    "stats": {
+      "pac": 90,
+      "sho": 78,
+      "pas": 76,
+      "dri": 84,
+      "def": 42,
+      "phy": 72
+    }
+  },
+  {
+    "name": "Dean Huijsen",
+    "position": "CB",
+    "club": "Real Madrid",
+    "country": "Netherlands",
+    "ovr": 83,
+    "stats": {
+      "pac": 80,
+      "sho": 42,
+      "pas": 72,
+      "dri": 72,
+      "def": 83,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Manuel Akanji",
+    "position": "CB",
+    "club": "Manchester City",
+    "country": "Switzerland",
+    "ovr": 83,
+    "stats": {
+      "pac": 80,
+      "sho": 45,
+      "pas": 74,
+      "dri": 76,
+      "def": 83,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Riccardo Calafiori",
+    "position": "CB",
+    "club": "Arsenal",
+    "country": "Italy",
+    "ovr": 83,
+    "stats": {
+      "pac": 80,
+      "sho": 55,
+      "pas": 76,
+      "dri": 80,
+      "def": 82,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Nico Schlotterbeck",
+    "position": "CB",
+    "club": "Borussia Dortmund",
+    "country": "Germany",
+    "ovr": 83,
+    "stats": {
+      "pac": 82,
+      "sho": 46,
+      "pas": 76,
+      "dri": 72,
+      "def": 84,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Jonathan Tah",
+    "position": "CB",
+    "club": "Bayer Leverkusen",
+    "country": "Germany",
+    "ovr": 83,
+    "stats": {
+      "pac": 78,
+      "sho": 42,
+      "pas": 72,
+      "dri": 68,
+      "def": 85,
+      "phy": 84
+    }
+  },
+  {
+    "name": "Piero Hincapié",
+    "position": "CB",
+    "club": "Arsenal",
+    "country": "Ecuador",
+    "ovr": 83,
+    "stats": {
+      "pac": 80,
+      "sho": 42,
+      "pas": 72,
+      "dri": 72,
+      "def": 83,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Fikayo Tomori",
+    "position": "CB",
+    "club": "AC Milan",
+    "country": "England",
+    "ovr": 83,
+    "stats": {
+      "pac": 86,
+      "sho": 42,
+      "pas": 68,
+      "dri": 72,
+      "def": 83,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Gonçalo Inácio",
+    "position": "CB",
+    "club": "Sporting CP",
+    "country": "Portugal",
+    "ovr": 83,
+    "stats": {
+      "pac": 76,
+      "sho": 44,
+      "pas": 74,
+      "dri": 74,
+      "def": 83,
+      "phy": 80
+    }
+  },
+  {
+    "name": "David Hancko",
+    "position": "CB",
+    "club": "Feyenoord",
+    "country": "Slovakia",
+    "ovr": 83,
+    "stats": {
+      "pac": 84,
+      "sho": 55,
+      "pas": 78,
+      "dri": 80,
+      "def": 81,
+      "phy": 80
+    }
+  },
+  {
+    "name": "Reece James",
+    "position": "RB",
+    "club": "Chelsea",
+    "country": "England",
+    "ovr": 84,
+    "stats": {
+      "pac": 86,
+      "sho": 68,
+      "pas": 82,
+      "dri": 84,
+      "def": 82,
+      "phy": 84
+    }
+  },
+  {
+    "name": "João Cancelo",
+    "position": "RB",
+    "club": "Al-Hilal",
+    "country": "Portugal",
+    "ovr": 84,
+    "stats": {
+      "pac": 84,
+      "sho": 62,
+      "pas": 84,
+      "dri": 86,
+      "def": 76,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Pedro Porro",
+    "position": "RB",
+    "club": "Tottenham Hotspur",
+    "country": "Spain",
+    "ovr": 83,
+    "stats": {
+      "pac": 86,
+      "sho": 60,
+      "pas": 80,
+      "dri": 82,
+      "def": 76,
+      "phy": 74
+    }
+  },
+  {
+    "name": "Diogo Dalot",
+    "position": "RB",
+    "club": "Manchester United",
+    "country": "Portugal",
+    "ovr": 83,
+    "stats": {
+      "pac": 86,
+      "sho": 62,
+      "pas": 78,
+      "dri": 80,
+      "def": 80,
+      "phy": 78
+    }
+  },
+  {
+    "name": "Destiny Udogie",
+    "position": "LB",
+    "club": "Tottenham Hotspur",
+    "country": "Italy",
+    "ovr": 83,
+    "stats": {
+      "pac": 90,
+      "sho": 55,
+      "pas": 76,
+      "dri": 82,
+      "def": 76,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Sadio Mané",
+    "position": "LW",
+    "club": "Al-Nassr",
+    "country": "Senegal",
+    "ovr": 83,
+    "stats": {
+      "pac": 88,
+      "sho": 80,
+      "pas": 76,
+      "dri": 86,
+      "def": 38,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Riyad Mahrez",
+    "position": "RW",
+    "club": "Al-Ahli",
+    "country": "Algeria",
+    "ovr": 83,
+    "stats": {
+      "pac": 84,
+      "sho": 80,
+      "pas": 82,
+      "dri": 86,
+      "def": 38,
+      "phy": 70
+    }
+  },
+  {
+    "name": "Moussa Diaby",
+    "position": "RW",
+    "club": "Al-Ittihad",
+    "country": "France",
+    "ovr": 83,
+    "stats": {
+      "pac": 93,
+      "sho": 78,
+      "pas": 78,
+      "dri": 86,
+      "def": 34,
+      "phy": 68
+    }
+  },
+  {
+    "name": "Dušan Vlahović",
+    "position": "ST",
+    "club": "Juventus",
+    "country": "Serbia",
+    "ovr": 84,
+    "stats": {
+      "pac": 82,
+      "sho": 86,
+      "pas": 70,
+      "dri": 80,
+      "def": 40,
+      "phy": 84
+    }
+  },
+  {
+    "name": "Álvaro Morata",
+    "position": "ST",
+    "club": "AC Milan",
+    "country": "Spain",
+    "ovr": 83,
+    "stats": {
+      "pac": 80,
+      "sho": 82,
+      "pas": 72,
+      "dri": 80,
+      "def": 42,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Gonçalo Ramos",
+    "position": "ST",
+    "club": "Paris Saint-Germain",
+    "country": "Portugal",
+    "ovr": 83,
+    "stats": {
+      "pac": 82,
+      "sho": 84,
+      "pas": 72,
+      "dri": 82,
+      "def": 40,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Jarrod Bowen",
+    "position": "RW",
+    "club": "West Ham United",
+    "country": "England",
+    "ovr": 83,
+    "stats": {
+      "pac": 88,
+      "sho": 82,
+      "pas": 76,
+      "dri": 82,
+      "def": 50,
+      "phy": 78
+    }
+  },
+  {
+    "name": "Lucas Paquetá",
+    "position": "CAM",
+    "club": "Flamengo",
+    "country": "Brazil",
+    "ovr": 83,
+    "stats": {
+      "pac": 78,
+      "sho": 76,
+      "pas": 82,
+      "dri": 86,
+      "def": 64,
+      "phy": 74
+    }
+  },
+  {
+    "name": "Marco Asensio",
+    "position": "CAM",
+    "club": "Aston Villa",
+    "country": "Spain",
+    "ovr": 83,
+    "stats": {
+      "pac": 80,
+      "sho": 80,
+      "pas": 80,
+      "dri": 84,
+      "def": 52,
+      "phy": 72
+    }
+  },
+  {
+    "name": "Julian Brandt",
+    "position": "CAM",
+    "club": "Borussia Dortmund",
+    "country": "Germany",
+    "ovr": 83,
+    "stats": {
+      "pac": 78,
+      "sho": 76,
+      "pas": 84,
+      "dri": 86,
+      "def": 52,
+      "phy": 66
+    }
+  },
+  {
+    "name": "James Maddison",
+    "position": "CAM",
+    "club": "Tottenham Hotspur",
+    "country": "England",
+    "ovr": 83,
+    "stats": {
+      "pac": 74,
+      "sho": 78,
+      "pas": 85,
+      "dri": 86,
+      "def": 46,
+      "phy": 64
+    }
+  },
+  {
+    "name": "Youri Tielemans",
+    "position": "CM",
+    "club": "Aston Villa",
+    "country": "Belgium",
+    "ovr": 83,
+    "stats": {
+      "pac": 74,
+      "sho": 76,
+      "pas": 84,
+      "dri": 84,
+      "def": 74,
+      "phy": 78
+    }
+  },
+  {
+    "name": "Fabián Ruiz",
+    "position": "CM",
+    "club": "Paris Saint-Germain",
+    "country": "Spain",
+    "ovr": 83,
+    "stats": {
+      "pac": 76,
+      "sho": 76,
+      "pas": 84,
+      "dri": 86,
+      "def": 74,
+      "phy": 78
+    }
+  },
+  {
+    "name": "Teun Koopmeiners",
+    "position": "CM",
+    "club": "Juventus",
+    "country": "Netherlands",
+    "ovr": 83,
+    "stats": {
+      "pac": 72,
+      "sho": 78,
+      "pas": 84,
+      "dri": 82,
+      "def": 74,
+      "phy": 78
+    }
+  },
+  {
+    "name": "Amadou Onana",
+    "position": "CDM",
+    "club": "Aston Villa",
+    "country": "Belgium",
+    "ovr": 83,
+    "stats": {
+      "pac": 76,
+      "sho": 64,
+      "pas": 76,
+      "dri": 78,
+      "def": 82,
+      "phy": 86
+    }
+  },
+  {
+    "name": "Thomas Partey",
+    "position": "CDM",
+    "club": "Villarreal",
+    "country": "Ghana",
+    "ovr": 82,
+    "stats": {
+      "pac": 76,
+      "sho": 70,
+      "pas": 80,
+      "dri": 80,
+      "def": 82,
+      "phy": 84
+    }
+  },
+  {
+    "name": "Yves Bissouma",
+    "position": "CDM",
+    "club": "Tottenham Hotspur",
+    "country": "Mali",
+    "ovr": 82,
+    "stats": {
+      "pac": 80,
+      "sho": 66,
+      "pas": 80,
+      "dri": 84,
+      "def": 78,
+      "phy": 78
+    }
+  },
+  {
+    "name": "Morten Hjulmand",
+    "position": "CDM",
+    "club": "Sporting CP",
+    "country": "Denmark",
+    "ovr": 82,
+    "stats": {
+      "pac": 74,
+      "sho": 66,
+      "pas": 82,
+      "dri": 80,
+      "def": 82,
+      "phy": 80
+    }
+  },
+  {
+    "name": "Boubacar Kamara",
+    "position": "CDM",
+    "club": "Aston Villa",
+    "country": "France",
+    "ovr": 82,
+    "stats": {
+      "pac": 76,
+      "sho": 66,
+      "pas": 80,
+      "dri": 80,
+      "def": 82,
+      "phy": 78
+    }
+  },
+  {
+    "name": "Bryan Cristante",
+    "position": "CM",
+    "club": "Roma",
+    "country": "Italy",
+    "ovr": 82,
+    "stats": {
+      "pac": 74,
+      "sho": 72,
+      "pas": 80,
+      "dri": 78,
+      "def": 80,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Davide Frattesi",
+    "position": "CM",
+    "club": "Inter",
+    "country": "Italy",
+    "ovr": 82,
+    "stats": {
+      "pac": 80,
+      "sho": 78,
+      "pas": 78,
+      "dri": 80,
+      "def": 72,
+      "phy": 80
+    }
+  },
+  {
+    "name": "Manu Koné",
+    "position": "CM",
+    "club": "Roma",
+    "country": "France",
+    "ovr": 82,
+    "stats": {
+      "pac": 80,
+      "sho": 66,
+      "pas": 78,
+      "dri": 82,
+      "def": 78,
+      "phy": 80
+    }
+  },
+  {
+    "name": "Exequiel Palacios",
+    "position": "CM",
+    "club": "Bayer Leverkusen",
+    "country": "Argentina",
+    "ovr": 82,
+    "stats": {
+      "pac": 76,
+      "sho": 72,
+      "pas": 82,
+      "dri": 82,
+      "def": 76,
+      "phy": 74
+    }
+  },
+  {
+    "name": "Youssouf Fofana",
+    "position": "CM",
+    "club": "AC Milan",
+    "country": "France",
+    "ovr": 82,
+    "stats": {
+      "pac": 78,
+      "sho": 68,
+      "pas": 80,
+      "dri": 80,
+      "def": 80,
+      "phy": 80
+    }
+  },
+  {
+    "name": "Yoane Wissa",
+    "position": "ST",
+    "club": "Newcastle United",
+    "country": "DR Congo",
+    "ovr": 82,
+    "stats": {
+      "pac": 88,
+      "sho": 78,
+      "pas": 70,
+      "dri": 82,
+      "def": 38,
+      "phy": 74
+    }
+  },
+  {
+    "name": "Jonathan David",
+    "position": "ST",
+    "club": "Lille",
+    "country": "Canada",
+    "ovr": 82,
+    "stats": {
+      "pac": 84,
+      "sho": 82,
+      "pas": 76,
+      "dri": 82,
+      "def": 42,
+      "phy": 74
+    }
+  },
+  {
+    "name": "Darwin Núñez",
+    "position": "ST",
+    "club": "Al-Hilal",
+    "country": "Uruguay",
+    "ovr": 82,
+    "stats": {
+      "pac": 90,
+      "sho": 80,
+      "pas": 66,
+      "dri": 78,
+      "def": 40,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Richarlison",
+    "position": "ST",
+    "club": "Tottenham Hotspur",
+    "country": "Brazil",
+    "ovr": 82,
+    "stats": {
+      "pac": 86,
+      "sho": 80,
+      "pas": 70,
+      "dri": 82,
+      "def": 46,
+      "phy": 84
+    }
+  },
+  {
+    "name": "Gabriel Jesus",
+    "position": "ST",
+    "club": "Arsenal",
+    "country": "Brazil",
+    "ovr": 82,
+    "stats": {
+      "pac": 86,
+      "sho": 80,
+      "pas": 76,
+      "dri": 86,
+      "def": 40,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Iago Aspas",
+    "position": "ST",
+    "club": "Celta Vigo",
+    "country": "Spain",
+    "ovr": 82,
+    "stats": {
+      "pac": 80,
+      "sho": 84,
+      "pas": 78,
+      "dri": 84,
+      "def": 40,
+      "phy": 68
+    }
+  },
+  {
+    "name": "Memphis Depay",
+    "position": "ST",
+    "club": "Corinthians",
+    "country": "Netherlands",
+    "ovr": 82,
+    "stats": {
+      "pac": 84,
+      "sho": 82,
+      "pas": 80,
+      "dri": 86,
+      "def": 40,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Roberto Firmino",
+    "position": "CF",
+    "club": "Al-Ahli",
+    "country": "Brazil",
+    "ovr": 82,
+    "stats": {
+      "pac": 76,
+      "sho": 78,
+      "pas": 82,
+      "dri": 86,
+      "def": 46,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Leandro Trossard",
+    "position": "LW",
+    "club": "Arsenal",
+    "country": "Belgium",
+    "ovr": 82,
+    "stats": {
+      "pac": 82,
+      "sho": 80,
+      "pas": 80,
+      "dri": 84,
+      "def": 42,
+      "phy": 70
+    }
+  },
+  {
+    "name": "João Félix",
+    "position": "CF",
+    "club": "Chelsea",
+    "country": "Portugal",
+    "ovr": 82,
+    "stats": {
+      "pac": 82,
+      "sho": 78,
+      "pas": 80,
+      "dri": 86,
+      "def": 40,
+      "phy": 68
+    }
+  },
+  {
+    "name": "Donyell Malen",
+    "position": "LW",
+    "club": "Borussia Dortmund",
+    "country": "Netherlands",
+    "ovr": 82,
+    "stats": {
+      "pac": 88,
+      "sho": 78,
+      "pas": 74,
+      "dri": 84,
+      "def": 40,
+      "phy": 72
+    }
+  },
+  {
+    "name": "Samuel Chukwueze",
+    "position": "RW",
+    "club": "AC Milan",
+    "country": "Nigeria",
+    "ovr": 82,
+    "stats": {
+      "pac": 92,
+      "sho": 74,
+      "pas": 72,
+      "dri": 84,
+      "def": 36,
+      "phy": 68
+    }
+  },
+  {
+    "name": "Ferran Torres",
+    "position": "RW",
+    "club": "Barcelona",
+    "country": "Spain",
+    "ovr": 82,
+    "stats": {
+      "pac": 86,
+      "sho": 78,
+      "pas": 76,
+      "dri": 82,
+      "def": 46,
+      "phy": 78
+    }
+  },
+  {
+    "name": "Alexander Sørloth",
+    "position": "ST",
+    "club": "Atlético Madrid",
+    "country": "Norway",
+    "ovr": 82,
+    "stats": {
+      "pac": 76,
+      "sho": 84,
+      "pas": 68,
+      "dri": 76,
+      "def": 38,
+      "phy": 86
+    }
+  },
+  {
+    "name": "Artem Dovbyk",
+    "position": "ST",
+    "club": "Roma",
+    "country": "Ukraine",
+    "ovr": 82,
+    "stats": {
+      "pac": 80,
+      "sho": 84,
+      "pas": 68,
+      "dri": 78,
+      "def": 38,
+      "phy": 84
+    }
+  },
+  {
+    "name": "Niclas Füllkrug",
+    "position": "ST",
+    "club": "AC Milan",
+    "country": "Germany",
+    "ovr": 82,
+    "stats": {
+      "pac": 70,
+      "sho": 83,
+      "pas": 70,
+      "dri": 76,
+      "def": 40,
+      "phy": 86
+    }
+  },
+  {
+    "name": "Rafa Silva",
+    "position": "CAM",
+    "club": "Benfica",
+    "country": "Portugal",
+    "ovr": 82,
+    "stats": {
+      "pac": 82,
+      "sho": 76,
+      "pas": 80,
+      "dri": 86,
+      "def": 52,
+      "phy": 66
+    }
+  },
+  {
+    "name": "Isco",
+    "position": "CAM",
+    "club": "Real Betis",
+    "country": "Spain",
+    "ovr": 81,
+    "stats": {
+      "pac": 74,
+      "sho": 76,
+      "pas": 82,
+      "dri": 86,
+      "def": 60,
+      "phy": 66
+    }
+  },
+  {
+    "name": "Estêvão",
+    "position": "RW",
+    "club": "Chelsea",
+    "country": "Brazil",
+    "ovr": 82,
+    "stats": {
+      "pac": 88,
+      "sho": 76,
+      "pas": 78,
+      "dri": 87,
+      "def": 30,
+      "phy": 64
+    }
+  },
+  {
+    "name": "Jamie Gittens",
+    "position": "LW",
+    "club": "Chelsea",
+    "country": "England",
+    "ovr": 82,
+    "stats": {
+      "pac": 90,
+      "sho": 76,
+      "pas": 74,
+      "dri": 86,
+      "def": 36,
+      "phy": 70
+    }
+  },
+  {
+    "name": "João Pedro",
+    "position": "ST",
+    "club": "Chelsea",
+    "country": "Brazil",
+    "ovr": 83,
+    "stats": {
+      "pac": 84,
+      "sho": 82,
+      "pas": 76,
+      "dri": 84,
+      "def": 42,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Liam Delap",
+    "position": "ST",
+    "club": "Chelsea",
+    "country": "England",
+    "ovr": 81,
+    "stats": {
+      "pac": 86,
+      "sho": 78,
+      "pas": 68,
+      "dri": 80,
+      "def": 40,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Mathys Tel",
+    "position": "ST",
+    "club": "Tottenham Hotspur",
+    "country": "France",
+    "ovr": 81,
+    "stats": {
+      "pac": 86,
+      "sho": 76,
+      "pas": 72,
+      "dri": 82,
+      "def": 38,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Arda Güler",
+    "position": "CAM",
+    "club": "Real Madrid",
+    "country": "Turkey",
+    "ovr": 81,
+    "stats": {
+      "pac": 78,
+      "sho": 74,
+      "pas": 80,
+      "dri": 85,
+      "def": 52,
+      "phy": 64
+    }
+  },
+  {
+    "name": "Kenan Yıldız",
+    "position": "CAM",
+    "club": "Juventus",
+    "country": "Turkey",
+    "ovr": 80,
+    "stats": {
+      "pac": 84,
+      "sho": 72,
+      "pas": 74,
+      "dri": 82,
+      "def": 34,
+      "phy": 64
+    }
+  },
+  {
+    "name": "Pau Cubarsí",
+    "position": "CB",
+    "club": "Barcelona",
+    "country": "Spain",
+    "ovr": 81,
+    "stats": {
+      "pac": 64,
+      "sho": 38,
+      "pas": 68,
+      "dri": 66,
+      "def": 81,
+      "phy": 75
+    }
+  },
+  {
+    "name": "Leny Yoro",
+    "position": "CB",
+    "club": "Manchester United",
+    "country": "France",
+    "ovr": 81,
+    "stats": {
+      "pac": 84,
+      "sho": 40,
+      "pas": 70,
+      "dri": 72,
+      "def": 81,
+      "phy": 80
+    }
+  },
+  {
+    "name": "Savinho",
+    "position": "RW",
+    "club": "Manchester City",
+    "country": "Brazil",
+    "ovr": 81,
+    "stats": {
+      "pac": 90,
+      "sho": 68,
+      "pas": 72,
+      "dri": 85,
+      "def": 30,
+      "phy": 60
+    }
+  },
+  {
+    "name": "Álvaro Carreras",
+    "position": "LB",
+    "club": "Real Madrid",
+    "country": "Spain",
+    "ovr": 81,
+    "stats": {
+      "pac": 86,
+      "sho": 50,
+      "pas": 74,
+      "dri": 80,
+      "def": 78,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Castello Lukeba",
+    "position": "CB",
+    "club": "RB Leipzig",
+    "country": "France",
+    "ovr": 81,
+    "stats": {
+      "pac": 80,
+      "sho": 40,
+      "pas": 70,
+      "dri": 72,
+      "def": 80,
+      "phy": 78
+    }
+  },
+  {
+    "name": "Edmond Tapsoba",
+    "position": "CB",
+    "club": "Bayer Leverkusen",
+    "country": "Burkina Faso",
+    "ovr": 81,
+    "stats": {
+      "pac": 82,
+      "sho": 40,
+      "pas": 70,
+      "dri": 70,
+      "def": 82,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Ousmane Diomande",
+    "position": "CB",
+    "club": "Sporting CP",
+    "country": "Ivory Coast",
+    "ovr": 81,
+    "stats": {
+      "pac": 82,
+      "sho": 42,
+      "pas": 68,
+      "dri": 72,
+      "def": 81,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Levi Colwill",
+    "position": "CB",
+    "club": "Chelsea",
+    "country": "England",
+    "ovr": 81,
+    "stats": {
+      "pac": 80,
+      "sho": 42,
+      "pas": 70,
+      "dri": 72,
+      "def": 80,
+      "phy": 80
+    }
+  },
+  {
+    "name": "Wesley Fofana",
+    "position": "CB",
+    "club": "Chelsea",
+    "country": "France",
+    "ovr": 81,
+    "stats": {
+      "pac": 84,
+      "sho": 40,
+      "pas": 68,
+      "dri": 70,
+      "def": 81,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Malo Gusto",
+    "position": "RB",
+    "club": "Chelsea",
+    "country": "France",
+    "ovr": 82,
+    "stats": {
+      "pac": 88,
+      "sho": 55,
+      "pas": 76,
+      "dri": 82,
+      "def": 76,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Vanderson",
+    "position": "RB",
+    "club": "Monaco",
+    "country": "Brazil",
+    "ovr": 82,
+    "stats": {
+      "pac": 86,
+      "sho": 55,
+      "pas": 76,
+      "dri": 80,
+      "def": 76,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Rayan Aït-Nouri",
+    "position": "LB",
+    "club": "Wolverhampton",
+    "country": "Algeria",
+    "ovr": 81,
+    "stats": {
+      "pac": 86,
+      "sho": 52,
+      "pas": 74,
+      "dri": 80,
+      "def": 74,
+      "phy": 72
+    }
+  },
+  {
+    "name": "Kobbie Mainoo",
+    "position": "CM",
+    "club": "Manchester United",
+    "country": "England",
+    "ovr": 80,
+    "stats": {
+      "pac": 72,
+      "sho": 66,
+      "pas": 80,
+      "dri": 84,
+      "def": 70,
+      "phy": 74
+    }
+  },
+  {
+    "name": "Adam Wharton",
+    "position": "CM",
+    "club": "Crystal Palace",
+    "country": "England",
+    "ovr": 80,
+    "stats": {
+      "pac": 70,
+      "sho": 66,
+      "pas": 80,
+      "dri": 80,
+      "def": 76,
+      "phy": 74
+    }
+  },
+  {
+    "name": "Hugo Larsson",
+    "position": "CM",
+    "club": "Eintracht Frankfurt",
+    "country": "Sweden",
+    "ovr": 79,
+    "stats": {
+      "pac": 76,
+      "sho": 66,
+      "pas": 78,
+      "dri": 80,
+      "def": 72,
+      "phy": 74
+    }
+  },
+  {
+    "name": "Nicolò Rovella",
+    "position": "CDM",
+    "club": "Lazio",
+    "country": "Italy",
+    "ovr": 80,
+    "stats": {
+      "pac": 72,
+      "sho": 64,
+      "pas": 80,
+      "dri": 78,
+      "def": 78,
+      "phy": 74
+    }
+  },
+  {
+    "name": "Maxence Caqueret",
+    "position": "CM",
+    "club": "Atalanta",
+    "country": "France",
+    "ovr": 80,
+    "stats": {
+      "pac": 74,
+      "sho": 68,
+      "pas": 82,
+      "dri": 84,
+      "def": 74,
+      "phy": 70
+    }
+  },
+  {
+    "name": "Oscar Bobb",
+    "position": "RW",
+    "club": "Fulham",
+    "country": "Norway",
+    "ovr": 80,
+    "stats": {
+      "pac": 86,
+      "sho": 72,
+      "pas": 78,
+      "dri": 84,
+      "def": 40,
+      "phy": 68
+    }
+  },
+  {
+    "name": "Charalampos Kostoulas",
+    "position": "ST",
+    "club": "Brighton",
+    "country": "Greece",
+    "ovr": 80,
+    "stats": {
+      "pac": 84,
+      "sho": 78,
+      "pas": 70,
+      "dri": 80,
+      "def": 36,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Claudio Echeverri",
+    "position": "CAM",
+    "club": "Manchester City",
+    "country": "Argentina",
+    "ovr": 80,
+    "stats": {
+      "pac": 82,
+      "sho": 72,
+      "pas": 78,
+      "dri": 85,
+      "def": 34,
+      "phy": 62
+    }
+  },
+  {
+    "name": "Franco Mastantuono",
+    "position": "CAM",
+    "club": "Real Madrid",
+    "country": "Argentina",
+    "ovr": 80,
+    "stats": {
+      "pac": 80,
+      "sho": 74,
+      "pas": 78,
+      "dri": 84,
+      "def": 36,
+      "phy": 64
+    }
+  },
+  {
+    "name": "Kendry Paez",
+    "position": "CAM",
+    "club": "Chelsea",
+    "country": "Ecuador",
+    "ovr": 80,
+    "stats": {
+      "pac": 80,
+      "sho": 72,
+      "pas": 78,
+      "dri": 84,
+      "def": 38,
+      "phy": 64
+    }
+  },
+  {
+    "name": "Nico Paz",
+    "position": "CAM",
+    "club": "Como",
+    "country": "Argentina",
+    "ovr": 80,
+    "stats": {
+      "pac": 78,
+      "sho": 74,
+      "pas": 80,
+      "dri": 82,
+      "def": 48,
+      "phy": 72
+    }
+  },
+  {
+    "name": "Geovany Quenda",
+    "position": "RW",
+    "club": "Sporting CP",
+    "country": "Portugal",
+    "ovr": 79,
+    "stats": {
+      "pac": 88,
+      "sho": 68,
+      "pas": 72,
+      "dri": 82,
+      "def": 32,
+      "phy": 64
+    }
+  },
+  {
+    "name": "Sverre Nypan",
+    "position": "CM",
+    "club": "Manchester City",
+    "country": "Norway",
+    "ovr": 79,
+    "stats": {
+      "pac": 74,
+      "sho": 68,
+      "pas": 78,
+      "dri": 80,
+      "def": 70,
+      "phy": 72
+    }
+  },
+  {
+    "name": "Evan Ferguson",
+    "position": "ST",
+    "club": "Brighton",
+    "country": "Ireland",
+    "ovr": 78,
+    "stats": {
+      "pac": 80,
+      "sho": 78,
+      "pas": 66,
+      "dri": 76,
+      "def": 34,
+      "phy": 80
+    }
+  },
+  {
+    "name": "Endrick",
+    "position": "ST",
+    "club": "Real Madrid",
+    "country": "Brazil",
+    "ovr": 80,
+    "stats": {
+      "pac": 88,
+      "sho": 78,
+      "pas": 68,
+      "dri": 82,
+      "def": 32,
+      "phy": 72
+    }
+  },
+  {
+    "name": "Andriy Lunin",
+    "position": "GK",
+    "club": "Real Madrid",
+    "country": "Ukraine",
+    "ovr": 83,
+    "stats": {
+      "div": 82,
+      "han": 80,
+      "kic": 82,
+      "ref": 84,
+      "spd": 50,
+      "pos": 82
+    }
+  },
+  {
+    "name": "Jordan Pickford",
+    "position": "GK",
+    "club": "Everton",
+    "country": "England",
+    "ovr": 84,
+    "stats": {
+      "div": 83,
+      "han": 82,
+      "kic": 86,
+      "ref": 86,
+      "spd": 48,
+      "pos": 84
+    }
+  },
+  {
+    "name": "Wojciech Szczęsny",
+    "position": "GK",
+    "club": "Barcelona",
+    "country": "Poland",
+    "ovr": 83,
+    "stats": {
+      "div": 84,
+      "han": 83,
+      "kic": 82,
+      "ref": 85,
+      "spd": 45,
+      "pos": 84
+    }
+  },
+  {
+    "name": "David de Gea",
+    "position": "GK",
+    "club": "Fiorentina",
+    "country": "Spain",
+    "ovr": 83,
+    "stats": {
+      "div": 82,
+      "han": 82,
+      "kic": 78,
+      "ref": 86,
+      "spd": 40,
+      "pos": 84
+    }
+  },
+  {
+    "name": "Brice Samba",
+    "position": "GK",
+    "club": "Lens",
+    "country": "France",
+    "ovr": 83,
+    "stats": {
+      "div": 83,
+      "han": 82,
+      "kic": 80,
+      "ref": 84,
+      "spd": 48,
+      "pos": 83
+    }
+  },
+  {
+    "name": "Nick Pope",
+    "position": "GK",
+    "club": "Newcastle United",
+    "country": "England",
+    "ovr": 82,
+    "stats": {
+      "div": 81,
+      "han": 82,
+      "kic": 76,
+      "ref": 84,
+      "spd": 40,
+      "pos": 82
+    }
+  },
+  {
+    "name": "Bernd Leno",
+    "position": "GK",
+    "club": "Fulham",
+    "country": "Germany",
+    "ovr": 82,
+    "stats": {
+      "div": 81,
+      "han": 80,
+      "kic": 82,
+      "ref": 84,
+      "spd": 48,
+      "pos": 82
+    }
+  },
+  {
+    "name": "Anatoliy Trubin",
+    "position": "GK",
+    "club": "Benfica",
+    "country": "Ukraine",
+    "ovr": 82,
+    "stats": {
+      "div": 82,
+      "han": 80,
+      "kic": 80,
+      "ref": 84,
+      "spd": 52,
+      "pos": 82
+    }
+  },
+  {
+    "name": "Bart Verbruggen",
+    "position": "GK",
+    "club": "Brighton",
+    "country": "Netherlands",
+    "ovr": 81,
+    "stats": {
+      "div": 80,
+      "han": 78,
+      "kic": 80,
+      "ref": 82,
+      "spd": 48,
+      "pos": 80
+    }
+  },
+  {
+    "name": "Lukáš Hrádecký",
+    "position": "GK",
+    "club": "Bayer Leverkusen",
+    "country": "Finland",
+    "ovr": 82,
+    "stats": {
+      "div": 81,
+      "han": 80,
+      "kic": 80,
+      "ref": 84,
+      "spd": 48,
+      "pos": 82
+    }
+  },
+  {
+    "name": "Joe Gomez",
+    "position": "CB",
+    "club": "Liverpool",
+    "country": "England",
+    "ovr": 81,
+    "stats": {
+      "pac": 82,
+      "sho": 40,
+      "pas": 70,
+      "dri": 72,
+      "def": 82,
+      "phy": 80
+    }
+  },
+  {
+    "name": "Matthijs de Ligt",
+    "position": "CB",
+    "club": "Manchester United",
+    "country": "Netherlands",
+    "ovr": 84,
+    "stats": {
+      "pac": 76,
+      "sho": 44,
+      "pas": 74,
+      "dri": 72,
+      "def": 85,
+      "phy": 85
+    }
+  },
+  {
+    "name": "David Alaba",
+    "position": "CB",
+    "club": "Real Madrid",
+    "country": "Austria",
+    "ovr": 84,
+    "stats": {
+      "pac": 78,
+      "sho": 55,
+      "pas": 78,
+      "dri": 78,
+      "def": 85,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Strahinja Pavlović",
+    "position": "CB",
+    "club": "AC Milan",
+    "country": "Serbia",
+    "ovr": 81,
+    "stats": {
+      "pac": 78,
+      "sho": 40,
+      "pas": 66,
+      "dri": 68,
+      "def": 82,
+      "phy": 84
+    }
+  },
+  {
+    "name": "Nayef Aguerd",
+    "position": "CB",
+    "club": "West Ham United",
+    "country": "Morocco",
+    "ovr": 81,
+    "stats": {
+      "pac": 78,
+      "sho": 42,
+      "pas": 70,
+      "dri": 70,
+      "def": 82,
+      "phy": 82
+    }
+  },
+  {
+    "name": "Marc Cucurella",
+    "position": "LB",
+    "club": "Chelsea",
+    "country": "Spain",
+    "ovr": 82,
+    "stats": {
+      "pac": 82,
+      "sho": 55,
+      "pas": 78,
+      "dri": 82,
+      "def": 76,
+      "phy": 74
+    }
+  },
+  {
+    "name": "Federico Dimarco",
+    "position": "LB",
+    "club": "Inter",
+    "country": "Italy",
+    "ovr": 84,
+    "stats": {
+      "pac": 84,
+      "sho": 72,
+      "pas": 84,
+      "dri": 82,
+      "def": 76,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Pervis Estupiñán",
+    "position": "LB",
+    "club": "AC Milan",
+    "country": "Ecuador",
+    "ovr": 83,
+    "stats": {
+      "pac": 86,
+      "sho": 55,
+      "pas": 78,
+      "dri": 82,
+      "def": 78,
+      "phy": 78
+    }
+  },
+  {
+    "name": "Giovanni Di Lorenzo",
+    "position": "RB",
+    "club": "Napoli",
+    "country": "Italy",
+    "ovr": 84,
+    "stats": {
+      "pac": 84,
+      "sho": 60,
+      "pas": 80,
+      "dri": 80,
+      "def": 82,
+      "phy": 78
+    }
+  },
+  {
+    "name": "Luke Shaw",
+    "position": "LB",
+    "club": "Manchester United",
+    "country": "England",
+    "ovr": 82,
+    "stats": {
+      "pac": 84,
+      "sho": 55,
+      "pas": 78,
+      "dri": 82,
+      "def": 80,
+      "phy": 80
+    }
+  },
+  {
+    "name": "Alejandro Grimaldo",
+    "position": "LB",
+    "club": "Bayer Leverkusen",
+    "country": "Spain",
+    "ovr": 84,
+    "stats": {
+      "pac": 86,
+      "sho": 76,
+      "pas": 84,
+      "dri": 86,
+      "def": 70,
+      "phy": 66
+    }
+  },
+  {
+    "name": "Jérémy Doku",
+    "position": "LW",
+    "club": "Manchester City",
+    "country": "Belgium",
+    "ovr": 83,
+    "stats": {
+      "pac": 93,
+      "sho": 74,
+      "pas": 76,
+      "dri": 88,
+      "def": 34,
+      "phy": 66
+    }
+  },
+  {
+    "name": "Gabriel Martinelli",
+    "position": "LW",
+    "club": "Arsenal",
+    "country": "Brazil",
+    "ovr": 83,
+    "stats": {
+      "pac": 91,
+      "sho": 78,
+      "pas": 75,
+      "dri": 86,
+      "def": 38,
+      "phy": 72
+    }
+  },
+  {
+    "name": "Luis Díaz",
+    "position": "LW",
+    "club": "Bayern München",
+    "country": "Colombia",
+    "ovr": 85,
+    "stats": {
+      "pac": 90,
+      "sho": 81,
+      "pas": 78,
+      "dri": 86,
+      "def": 40,
+      "phy": 72
+    }
+  },
+  {
+    "name": "Noni Madueke",
+    "position": "RW",
+    "club": "Arsenal",
+    "country": "England",
+    "ovr": 82,
+    "stats": {
+      "pac": 89,
+      "sho": 76,
+      "pas": 72,
+      "dri": 84,
+      "def": 36,
+      "phy": 68
+    }
+  },
+  {
+    "name": "Michael Folorunsho",
+    "position": "CM",
+    "club": "Napoli",
+    "country": "Italy",
+    "ovr": 79,
+    "stats": {
+      "pac": 78,
+      "sho": 72,
+      "pas": 76,
+      "dri": 78,
+      "def": 74,
+      "phy": 80
+    }
+  },
+  {
+    "name": "Scott McTominay",
+    "position": "CM",
+    "club": "Napoli",
+    "country": "Scotland",
+    "ovr": 84,
+    "stats": {
+      "pac": 76,
+      "sho": 80,
+      "pas": 76,
+      "dri": 78,
+      "def": 76,
+      "phy": 84
+    }
+  },
+  {
+    "name": "Billy Gilmour",
+    "position": "CM",
+    "club": "Napoli",
+    "country": "Scotland",
+    "ovr": 81,
+    "stats": {
+      "pac": 70,
+      "sho": 64,
+      "pas": 82,
+      "dri": 80,
+      "def": 74,
+      "phy": 70
+    }
+  },
+  {
+    "name": "Khéphren Thuram",
+    "position": "CM",
+    "club": "Juventus",
+    "country": "France",
+    "ovr": 83,
+    "stats": {
+      "pac": 80,
+      "sho": 72,
+      "pas": 78,
+      "dri": 82,
+      "def": 76,
+      "phy": 84
+    }
+  },
+  {
+    "name": "Douglas Luiz",
+    "position": "CM",
+    "club": "Juventus",
+    "country": "Brazil",
+    "ovr": 82,
+    "stats": {
+      "pac": 74,
+      "sho": 72,
+      "pas": 82,
+      "dri": 82,
+      "def": 74,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Yankuba Minteh",
+    "position": "RW",
+    "club": "Brighton",
+    "country": "Gambia",
+    "ovr": 80,
+    "stats": {
+      "pac": 92,
+      "sho": 72,
+      "pas": 70,
+      "dri": 82,
+      "def": 34,
+      "phy": 68
+    }
+  },
+  {
+    "name": "Ansu Fati",
+    "position": "LW",
+    "club": "Barcelona",
+    "country": "Spain",
+    "ovr": 79,
+    "stats": {
+      "pac": 86,
+      "sho": 74,
+      "pas": 72,
+      "dri": 84,
+      "def": 32,
+      "phy": 64
+    }
+  },
+  {
+    "name": "Borja Mayoral",
+    "position": "ST",
+    "club": "Getafe",
+    "country": "Spain",
+    "ovr": 80,
+    "stats": {
+      "pac": 76,
+      "sho": 80,
+      "pas": 66,
+      "dri": 76,
+      "def": 40,
+      "phy": 78
+    }
+  },
+  {
+    "name": "Serhou Guirassy",
+    "position": "ST",
+    "club": "Borussia Dortmund",
+    "country": "Guinea",
+    "ovr": 84,
+    "stats": {
+      "pac": 78,
+      "sho": 86,
+      "pas": 68,
+      "dri": 78,
+      "def": 38,
+      "phy": 84
+    }
+  },
+  {
+    "name": "Hugo Ekitiké",
+    "position": "ST",
+    "club": "Liverpool",
+    "country": "France",
+    "ovr": 82,
+    "stats": {
+      "pac": 86,
+      "sho": 78,
+      "pas": 70,
+      "dri": 82,
+      "def": 34,
+      "phy": 76
+    }
+  },
+  {
+    "name": "Lorenzo Lucca",
+    "position": "ST",
+    "club": "Napoli",
+    "country": "Italy",
+    "ovr": 80,
+    "stats": {
+      "pac": 70,
+      "sho": 80,
+      "pas": 64,
+      "dri": 72,
+      "def": 36,
+      "phy": 84
+    }
+  },
+  {
+    "name": "Morgan Rogers",
+    "position": "CAM",
+    "club": "Aston Villa",
+    "country": "England",
+    "ovr": 82,
+    "stats": {
+      "pac": 84,
+      "sho": 76,
+      "pas": 78,
+      "dri": 84,
+      "def": 50,
+      "phy": 80
+    }
+  },
+  {
+    "name": "Yéremy Pino",
+    "position": "RW",
+    "club": "Crystal Palace",
+    "country": "Spain",
+    "ovr": 81,
+    "stats": {
+      "pac": 86,
+      "sho": 74,
+      "pas": 76,
+      "dri": 84,
+      "def": 44,
+      "phy": 70
+    }
+  },
+  {
+    "name": "Bradley Locko",
+    "position": "LB",
+    "club": "Brest",
+    "country": "France",
+    "ovr": 80,
+    "stats": {
+      "pac": 86,
+      "sho": 50,
+      "pas": 76,
+      "dri": 80,
+      "def": 76,
+      "phy": 74
+    }
+  },
+  {
+    "name": "Thiago Mmadi",
+    "position": "CB",
+    "club": "Eintracht Frankfurt",
+    "country": "France",
+    "ovr": 79,
+    "stats": {
+      "pac": 80,
+      "sho": 42,
+      "pas": 70,
+      "dri": 70,
+      "def": 79,
+      "phy": 80
+    }
+  },
+  {
+    "name": "Antonio Nusa",
+    "position": "LW",
+    "club": "RB Leipzig",
+    "country": "Norway",
+    "ovr": 80,
+    "stats": {
+      "pac": 90,
+      "sho": 72,
+      "pas": 72,
+      "dri": 84,
+      "def": 32,
+      "phy": 66
+    }
+  },
+  {
+    "name": "Georges Mikautadze",
+    "position": "ST",
+    "club": "Marseille",
+    "country": "Georgia",
+    "ovr": 81,
+    "stats": {
+      "pac": 80,
+      "sho": 82,
+      "pas": 72,
+      "dri": 84,
+      "def": 38,
+      "phy": 74
+    }
+  },
+  {
+    "name": "Francisco Conceição",
+    "position": "RW",
+    "club": "Juventus",
+    "country": "Portugal",
+    "ovr": 81,
+    "stats": {
+      "pac": 90,
+      "sho": 72,
+      "pas": 76,
+      "dri": 86,
+      "def": 36,
+      "phy": 64
+    }
+  },
+  {
+    "name": "Samuel Mbangue",
+    "position": "CB",
+    "club": "Lens",
+    "country": "France",
+    "ovr": 78,
+    "stats": {
+      "pac": 78,
+      "sho": 40,
+      "pas": 68,
+      "dri": 68,
+      "def": 79,
+      "phy": 82
+    }
+  }
+]

@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Bracket &middot; AuctionBot{% endblock %}
+
+{% block content %}
+<div class="page-head reveal" style="padding-bottom: 0; padding-left: 8px;">
+  <h1 class="page-title text-chrome" style="font-size: 32px;">Knockout</h1>
+</div>
+
+{% if left_cols or right_cols or final_match %}
+<div class="bracket-shell reveal">
+  <div class="bracket-tree" id="bracket-tree">
+
+    {# ── LEFT SIDE (logo left, score right) ────────────────────────────── #}
+    <div class="bk-side bk-left">
+      {% for col in left_cols %}
+      <div class="bk-col-wrap" data-side="left">
+        <div class="bk-label">{{ col.name | replace('Round of 16', 'R16') | replace('Quarter-Final', 'QF') | replace('Semi-Final', 'SF') }}</div>
+        <div class="bk-col-matches">
+          {% for m in col.matches %}
+          <div class="bk-match {{ 'played' if m.played else '' }}">
+            <div class="bk-row {{ 'won' if m.home_winner else '' }}">
+              {% if m.home_name == 'TBD' %}<span class="bk-tbd">TBD</span>{% else %}<img src="{{ m.home_logo }}" class="bk-l" alt="" onerror="this.style.opacity='0.2'">{% endif %}
+              <span class="bk-s {{ 'won' if m.home_winner else '' }}">{{ m.home_score if m.played else '' }}</span>
+            </div>
+            <div class="bk-row {{ 'won' if m.away_winner else '' }}">
+              {% if m.away_name == 'TBD' %}<span class="bk-tbd">TBD</span>{% else %}<img src="{{ m.away_logo }}" class="bk-l" alt="" onerror="this.style.opacity='0.2'">{% endif %}
+              <span class="bk-s {{ 'won' if m.away_winner else '' }}">{{ m.away_score if m.played else '' }}</span>
+            </div>
+            {% if m.home_pens is not none %}
+            <div class="bk-pens">({{ m.home_pens }}-{{ m.away_pens }})</div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {# ── FINAL ─────────────────────────────────────────────────────────── #}
+    {% if final_match %}
+    <div class="bk-col-wrap bk-final-col" data-side="final">
+      <div class="bk-label bk-gold">Final</div>
+      <div class="bk-col-matches" style="justify-content: center;">
+        <div class="bk-match bk-final {{ 'played' if final_match.played else '' }}">
+          <div class="bk-row {{ 'won' if final_match.home_winner else '' }}">
+            {% if final_match.home_name == 'TBD' %}<span class="bk-tbd">TBD</span>{% else %}<img src="{{ final_match.home_logo }}" class="bk-l" alt="" onerror="this.style.opacity='0.2'">{% endif %}
+            <span class="bk-s {{ 'won' if final_match.home_winner else '' }}">{{ final_match.home_score if final_match.played else '' }}</span>
+          </div>
+          <div class="bk-row {{ 'won' if final_match.away_winner else '' }}">
+            {% if final_match.away_name == 'TBD' %}<span class="bk-tbd">TBD</span>{% else %}<img src="{{ final_match.away_logo }}" class="bk-l" alt="" onerror="this.style.opacity='0.2'">{% endif %}
+            <span class="bk-s {{ 'won' if final_match.away_winner else '' }}">{{ final_match.away_score if final_match.played else '' }}</span>
+          </div>
+          {% if final_match.home_pens is not none %}
+          <div class="bk-pens">({{ final_match.home_pens }}-{{ final_match.away_pens }})</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── RIGHT SIDE (mirrored: logo right, score left) ─────────────────── #}
+    <div class="bk-side bk-right">
+      {% for col in right_cols %}
+      <div class="bk-col-wrap" data-side="right">
+        <div class="bk-label">{{ col.name | replace('Round of 16', 'R16') | replace('Quarter-Final', 'QF') | replace('Semi-Final', 'SF') }}</div>
+        <div class="bk-col-matches">
+          {% for m in col.matches %}
+          <div class="bk-match {{ 'played' if m.played else '' }}">
+            <div class="bk-row bk-row-right {{ 'won' if m.home_winner else '' }}">
+              <span class="bk-s {{ 'won' if m.home_winner else '' }}">{{ m.home_score if m.played else '' }}</span>
+              {% if m.home_name == 'TBD' %}<span class="bk-tbd">TBD</span>{% else %}<img src="{{ m.home_logo }}" class="bk-l" alt="" onerror="this.style.opacity='0.2'">{% endif %}
+            </div>
+            <div class="bk-row bk-row-right {{ 'won' if m.away_winner else '' }}">
+              <span class="bk-s {{ 'won' if m.away_winner else '' }}">{{ m.away_score if m.played else '' }}</span>
+              {% if m.away_name == 'TBD' %}<span class="bk-tbd">TBD</span>{% else %}<img src="{{ m.away_logo }}" class="bk-l" alt="" onerror="this.style.opacity='0.2'">{% endif %}
+            </div>
+            {% if m.home_pens is not none %}
+            <div class="bk-pens">({{ m.home_pens }}-{{ m.away_pens }})</div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+  </div>
+  <svg class="bracket-svg" id="bracket-svg"></svg>
+</div>
+
+{% if champion %}
+<div class="champion-mini reveal">
+  <img src="/logo/{{ champion }}" class="bk-l" style="width: 32px; height: 32px;" alt="" onerror="this.style.display='none'">
+  <span class="champion-name">{{ champion }}</span>
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty">
+  <h3>No Knockout Bracket</h3>
+  <p>This season format doesn't have a knockout stage, or it hasn't started yet.</p>
+</div>
+{% endif %}
+
+<script src="{{ url_for('static', filename='js/bracket-connectors.js') }}"></script>
+{% endblock %}

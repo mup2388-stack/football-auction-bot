@@ -1,0 +1,36 @@
+# Render Blueprint — Bot + Website in one web service.
+#
+# The free plan works but the filesystem is EPHEMERAL (wipes on restart).
+# For your SQLite DB + face cache to survive, add a Persistent Disk ($1/mo):
+#   Dashboard → your service → Disks → Add Disk → 1GB → mount at /opt/data
+# Then set DB_PATH=/opt/data/auction.db in environment variables.
+#
+# To prevent sleeping: set up UptimeRobot to ping your URL every 10 min.
+services:
+  - type: web
+    name: auction-bot
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    healthCheckPath: /
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: ADMIN_IDS
+        sync: false
+      - key: WEB_ENABLED
+        value: "true"
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_REDIRECT_URI
+        sync: false
+      - key: WEBHOOK_URL
+        sync: false
+      # If you add a persistent disk, uncomment these:
+      # - key: DB_PATH
+      #   value: /opt/data/auction.db

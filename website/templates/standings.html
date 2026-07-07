@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Standings &middot; FL26{% endblock %}
+
+{% block content %}
+
+<div class="page-head reveal">
+  <h1 class="page-title text-3d">Standings</h1>
+  {% if season %}
+  <p class="page-sub">Season {{ season.number }} &middot; {{ season.format | replace('_',' ') | title }}</p>
+  {% endif %}
+</div>
+
+{% if rows %}
+<div class="panel glow-card reveal" style="padding: 0; overflow: hidden;">
+  <table class="tbl" data-sortable>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Club</th>
+        <th class="sortable numeric" data-key="played">P</th>
+        <th class="sortable numeric" data-key="won">W</th>
+        <th class="sortable numeric" data-key="drawn">D</th>
+        <th class="sortable numeric" data-key="lost">L</th>
+        <th class="sortable numeric" data-key="gf">GF</th>
+        <th class="sortable numeric" data-key="ga">GA</th>
+        <th class="sortable numeric" data-key="gd">GD</th>
+        <th>Form</th>
+        <th class="sortable numeric sort-desc" data-key="pts">PTS</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr class="{{ 'leader' if loop.index == 1 else '' }}{{ ' zone-up' if loop.index <= 4 and loop.index > 1 else '' }}"
+          data-pts="{{ r.Pts }}" data-played="{{ r.P }}" data-won="{{ r.W }}"
+          data-drawn="{{ r.D }}" data-lost="{{ r.L }}" data-gf="{{ r.GF }}"
+          data-ga="{{ r.GA }}" data-gd="{{ r.GD }}">
+        <td class="rank">{{ loop.index }}</td>
+        <td>
+          <div class="team-cell">
+            {% if r.logo_url %}<img src="{{ r.logo_url }}" class="team-logo" alt="">{% endif %}
+            <span class="team-name">{{ r.team_name or r.manager_name }}</span>
+          </div>
+        </td>
+        <td class="numeric">{{ r.P }}</td>
+        <td class="numeric">{{ r.W }}</td>
+        <td class="numeric">{{ r.D }}</td>
+        <td class="numeric">{{ r.L }}</td>
+        <td class="numeric">{{ r.GF }}</td>
+        <td class="numeric">{{ r.GA }}</td>
+        <td class="numeric">{{ '%+d' | format(r.GD) }}</td>
+        <td>
+          {% if r.form %}
+          <div class="form-dots">
+            {% for result in r.form %}
+            <span class="form-dot {{ result }}">{{ result }}</span>
+            {% endfor %}
+          </div>
+          {% else %}
+          <span style="color: var(--ink-dim); font-size: 13px;">—</span>
+          {% endif %}
+        </td>
+        <td class="numeric"><span class="pts">{{ r.Pts }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty">
+  <h3>No Standings Yet</h3>
+  <p>Start a season and enter results to see the table.</p>
+</div>
+{% endif %}
+
+{% endblock %}

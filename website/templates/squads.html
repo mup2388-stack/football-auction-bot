@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Squads &middot; AuctionBot{% endblock %}
+
+{% block content %}
+<div class="page-head reveal">
+  <h1 class="page-title text-3d">Squads</h1>
+  <p class="page-sub">All managers and their rosters</p>
+</div>
+
+{% if managers %}
+<div class="reveal-stagger">
+  {% for m in managers %}
+  <a href="/squad/{{ m.user_id }}" class="squad-card-link">
+    <div class="squad-card glow-card panel" style="margin-bottom: 16px; display: flex; align-items: center; gap: 20px; text-decoration: none;">
+      <img src="{{ m.logo_url }}" class="squad-card-logo" alt="">
+      <div style="flex: 1;">
+        <div class="squad-card-name">{{ m.team_name }}</div>
+        <div class="squad-card-meta">
+          {{ m.squad_size }} players &middot; {{ m.squad_value }} &middot; Power {{ m.power_rating }}/100
+        </div>
+      </div>
+      <div class="squad-card-net">{{ m.net_worth }}</div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty">
+  <h3>No Squads Yet</h3>
+  <p>Start an auction and buy some players.</p>
+</div>
+{% endif %}
+{% endblock %}

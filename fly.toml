@@ -1,0 +1,17 @@
+# Fly.io config. Deploy with:  fly launch   then   fly deploy
+# (requires the fly CLI and a Fly.io account, free allowance available)
+app = "football-auction-bot"
+primary_region = "lhr"
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  auto_stop_machines = false   # keep the bot awake
+  auto_start_machines = false
+  min_machines_running = 1
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Golden Boot &middot; AuctionBot{% endblock %}
+
+{% block content %}
+<div class="page-head reveal">
+  <h1 class="page-title text-chrome">Golden Boot</h1>
+  {% if season %}
+  <p class="page-sub">{{ subtitle }} &middot; {{ season.format | replace('_', ' ') | title }}</p>
+  {% endif %}
+</div>
+
+{% if scorers %}
+<div class="scorers-list reveal">
+  <div class="reveal-stagger">
+    {% for s in scorers %}
+    <a href="/player/{{ s.name | lower | replace(' ', '-') }}" class="scorer-full-link">
+      <div class="scorer-card {{ 'is-leader' if loop.index == 1 else '' }}">
+        <span class="scorer-rank">{{ loop.index }}</span>
+        <img src="{{ s.face_url }}" class="scorer-face" alt="">
+        <div class="scorer-info">
+          <div class="scorer-name">{{ s.name }}</div>
+          <div class="scorer-club">
+            {% if s.club_logo %}<img src="{{ s.club_logo }}" class="team-logo" alt="" style="display:inline-block;vertical-align:middle;">{% endif %}
+            {{ s.club }} &middot; {{ s.country }}
+          </div>
+        </div>
+        <div class="scorer-stats-mini">
+          <span class="stat-chip goals-chip">{{ s.goals }}<small>goals</small></span>
+          {% if s.assists %}<span class="stat-chip">{{ s.assists }}<small>assists</small></span>{% endif %}
+          {% if s.motm %}<span class="stat-chip motm-chip">{{ s.motm }}<small>motm</small></span>{% endif %}
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="empty">
+  <h3>No Goals Yet</h3>
+  <p>Start a season and enter match results to see the golden boot race.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Fixtures &middot; AuctionBot{% endblock %}
+
+{% block content %}
+<div class="page-head reveal">
+  <h1 class="page-title text-3d">Fixtures</h1>
+  {% if season %}
+  <p class="page-sub">Season {{ season.number }} &middot; {{ season.format | replace('_', ' ') | title }}</p>
+  {% endif %}
+</div>
+
+{% if matchdays %}
+{# Matchday selector pills #}
+<div class="md-pills reveal">
+  {% for md in matchdays %}
+  <a href="/fixtures?md={{ md.md }}" class="md-pill {{ 'active' if md.is_selected else '' }} {{ 'done' if md.played == md.total else '' }}">
+    <span class="md-pill-num">MD{{ md.md }}</span>
+    <span class="md-pill-status">{{ md.played }}/{{ md.total }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+{# Selected matchday fixtures #}
+{% for md in matchdays if md.is_selected %}
+<div class="reveal">
+  <div class="fixtures-stage-label">
+    Matchday {{ md.md }}
+    {% if md.fixtures[0].group %} &middot; Group Stage{% elif md.fixtures[0].stage and md.fixtures[0].stage != 'league' %} &middot; {{ md.fixtures[0].stage | title }}{% endif %}
+  </div>
+
+  {% for f in md.fixtures %}
+  <div class="fixture-card {{ 'played' if f.status == 'played' else 'scheduled' }}">
+    <div class="fixture-team-side home {{ 'winner' if f.home_winner else '' }}">
+      <img src="{{ f.home_logo }}" class="fx-logo" alt="" onerror="this.style.display='none'">
+      <span class="fx-team-name">{{ f.home_name }}</span>
+    </div>
+    <div class="fixture-score-box">
+      {% if f.status == 'played' %}
+      <span class="fx-score">{{ f.home_score }}<span class="fx-score-sep">-</span>{{ f.away_score }}</span>
+      {% if f.home_pens is not none %}
+      <span class="fx-pens">({{ f.home_pens }}-{{ f.away_pens }} pens)</span>
+      {% endif %}
+      {% else %}
+      <span class="fx-vs">vs</span>
+      {% endif %}
+    </div>
+    <div class="fixture-team-side away {{ 'winner' if f.away_winner else '' }}">
+      <span class="fx-team-name">{{ f.away_name }}</span>
+      <img src="{{ f.away_logo }}" class="fx-logo" alt="" onerror="this.style.display='none'">
+    </div>
+    {% if f.group %}<div class="fx-group-tag">Group {{ f.group }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
+
+{% else %}
+<div class="empty">
+  <h3>No Fixtures</h3>
+  <p>Start a season to generate the match schedule.</p>
+</div>
+{% endif %}
+{% endblock %}
