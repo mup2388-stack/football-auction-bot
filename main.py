@@ -231,7 +231,7 @@ async def team(interaction: discord.Interaction, user: discord.Member = None):
     E.ensure_user(interaction.guild_id, target.id)
     squad = E.get_squad(interaction.guild_id, target.id)
     if not squad:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"{target.mention} has no players yet.", ephemeral=True)
         return
     await interaction.response.defer(thinking=True)
@@ -341,7 +341,7 @@ async def squad(interaction: discord.Interaction, user: discord.Member = None):
 async def player(interaction: discord.Interaction, name: str):
     p = P.get(name)
     if not p:
-        await interaction.response.send_message(f"{EM.e('x')} Player not found.", ephemeral=True)
+        await interaction.followup.send(f"{EM.e('x')} Player not found.", ephemeral=True)
         return
     await interaction.response.defer(thinking=True)
     try:
@@ -416,7 +416,7 @@ async def compare(interaction: discord.Interaction, player1: str, player2: str):
     a = P.get(player1)
     b = P.get(player2)
     if not a:
-        await interaction.response.send_message(f"{EM.e('x')} First player not found.", ephemeral=True)
+        await interaction.followup.send(f"{EM.e('x')} First player not found.", ephemeral=True)
         return
     if not b:
         await interaction.response.send_message(f"{EM.e('x')} Second player not found.", ephemeral=True)
@@ -441,7 +441,7 @@ async def matchup(interaction: discord.Interaction, user: discord.Member = None)
     me = interaction.user
     them = user
     if them and them.id == me.id:
-        await interaction.response.send_message(f"{EM.e('x')} You can't match up against yourself. Pick a rival!", ephemeral=True)
+        await interaction.followup.send(f"{EM.e('x')} You can't match up against yourself. Pick a rival!", ephemeral=True)
         return
     if them is None:
         with db.cursor() as c:
@@ -824,7 +824,7 @@ async def topscorers(interaction: discord.Interaction):
     sid = s["id"] if s else None
     scorers = E.get_top_scorers(interaction.guild_id, 10, season_id=sid)
     if not scorers:
-        await interaction.response.send_message("No goals recorded yet.", ephemeral=True)
+        await interaction.followup.send("No goals recorded yet.", ephemeral=True)
         return
     await interaction.response.defer(thinking=True)
     try:
@@ -889,7 +889,7 @@ async def bench(interaction: discord.Interaction, user: discord.Member = None):
     target = user or interaction.user
     squad = E.get_squad(interaction.guild_id, target.id)
     if not squad:
-        await interaction.response.send_message(f"No players yet.", ephemeral=True)
+        await interaction.followup.send(f"No players yet.", ephemeral=True)
         return
     await interaction.response.defer(thinking=True)
     lineup, _ = E.get_lineup(interaction.guild_id, target.id)
@@ -1089,7 +1089,7 @@ async def trades(interaction: discord.Interaction):
 @bot.tree.command(description="[Admin] Export FL26 setup guide with all teams, rosters & lineups.")
 async def exportfl26(interaction: discord.Interaction):
     if not is_admin(interaction.user.id):
-        await interaction.response.send_message(f"{EM.e('x')} Admins only.", ephemeral=True)
+        await interaction.followup.send(f"{EM.e('x')} Admins only.", ephemeral=True)
         return
     await interaction.response.defer(thinking=True)
     try:
@@ -1486,7 +1486,7 @@ except discord.app_commands.errors.CommandAlreadyRegistered:
 async def season_setup(interaction: discord.Interaction,
                        fmt: app_commands.Choice[str]):
     if not is_admin(interaction.user.id):
-        await interaction.response.send_message(f"{EM.e('x')} Admins only.", ephemeral=True)
+        await interaction.followup.send(f"{EM.e('x')} Admins only.", ephemeral=True)
         return
     await interaction.response.defer(ephemeral=True)
     guild_id = interaction.guild_id
@@ -1766,7 +1766,7 @@ async def fixture_autocomplete(interaction: discord.Interaction, current: str):
 async def table(interaction: discord.Interaction, group: str = None):
     s = L.active_season(interaction.guild_id)
     if not s:
-        await interaction.response.send_message(f"{EM.e('x')} No active season.", ephemeral=True)
+        await interaction.followup.send(f"{EM.e('x')} No active season.", ephemeral=True)
         return
 
     # If knockout-only format, show bracket instead of table
@@ -1860,7 +1860,7 @@ def _format_table(rows: list) -> str:
 async def bracket(interaction: discord.Interaction):
     s = L.active_season(interaction.guild_id)
     if not s:
-        await interaction.response.send_message("No active season.", ephemeral=True)
+        await interaction.followup.send("No active season.", ephemeral=True)
         return
     rnds = L.bracket(s["id"])
     if not rnds:
@@ -1917,7 +1917,7 @@ async def testseason(interaction: discord.Interaction,
                      fmt: app_commands.Choice[str] = None,
                      autoplay: bool = True):
     if not is_admin(interaction.user.id):
-        await interaction.response.send_message(f"{EM.e('x')} Admins only.", ephemeral=True)
+        await interaction.followup.send(f"{EM.e('x')} Admins only.", ephemeral=True)
         return
     guild_id = interaction.guild_id
     await interaction.response.defer(thinking=True)
@@ -2651,7 +2651,7 @@ async def quickresult(interaction: discord.Interaction, fixture: str, score: str
 async def importmatch(interaction: discord.Interaction,
                       file: discord.Attachment):
     if not is_admin(interaction.user.id):
-        await interaction.response.send_message("Admins only.", ephemeral=True)
+        await interaction.followup.send("Admins only.", ephemeral=True)
         return
     if not file.filename.endswith(".csv"):
         await interaction.response.send_message("Please upload a .csv file.", ephemeral=True)
