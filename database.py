@@ -1,13 +1,11 @@
 """
-SQLite persistence layer with optional Turso cloud sync.
+SQLite persistence layer with Turso cloud sync.
 
 - LOCAL mode: regular sqlite3 file (default)
-- TURSO mode: regular sqlite3 file + background sync to Turso cloud
-  (data survives Render restarts without code changes)
+- TURSO mode: libsql embedded replica (local speed + cloud persistence)
 
-The trick: we use regular sqlite3 for ALL reads/writes (so row_factory
-works perfectly), then sync the file to Turso's cloud after every write.
-On startup, we download the latest from Turso first.
+Uses a cursor wrapper so ALL queries return dict rows (like sqlite3.Row),
+regardless of whether we're in local or Turso mode.
 """
 import os
 import sqlite3
@@ -22,61 +20,155 @@ _turso_token = os.getenv("TURSO_AUTH_TOKEN", "")
 _using_turso = bool(_turso_url and _turso_token)
 
 
+class _DictCursor:
+    """Wraps any cursor (sqlite3 or libsql) to return dict rows."""
+
+    def __init__(self, cur):
+        self._cur = cur
+        self._cols = None
+
+    def _get_cols(self):
+        """Cache column names from cursor description."""
+        if self._cols is None:
+            try:
+                if self._cur.description:
+                    self._cols = [d[0] for d in self._cur.description]
+            except Exception:
+                self._cols = []
+        return self._cols or []
+
+    def _convert(self, row):
+        """Convert any row type to a dict."""
+        if row is None:
+            return None
+        # Already a dict? Done.
+        if isinstance(row, dict):
+            return row
+        # sqlite3.Row? Convert directly.
+        if isinstance(row, sqlite3.Row):
+            return {k: row[k] for k in row.keys()}
+        # Has a keys() method? Use it.
+        if hasattr(row, "keys"):
+            try:
+                return {k: row[k] for k in row.keys()}
+            except Exception:
+                pass
+        # It's a tuple/list — use column names from description.
+        if isinstance(row, (tuple, list)):
+            cols = self._get_cols()
+            if cols and len(cols) == len(row):
+                return {cols[i]: row[i] for i in range(len(row))}
+            # No column info — return as-is (caller must handle)
+            return row
+        return row
+
+    def execute(self, sql, params=()):
+        self._cols = None  # reset for new query
+        self._cur.execute(sql, params)
+        return self
+
+    def executescript(self, sql):
+        return self._cur.executescript(sql)
+
+    def fetchone(self):
+        return self._convert(self._cur.fetchone())
+
+    def fetchall(self):
+        return [self._convert(r) for r in self._cur.fetchall()]
+
+    def fetchmany(self, size):
+        return [self._convert(r) for r in self._cur.fetchmany(size)]
+
+    @property
+    def description(self):
+        return self._cur.description
+
+    @property
+    def lastrowid(self):
+        return self._cur.lastrowid
+
+    @property
+    def rowcount(self):
+        return self._cur.rowcount
+
+    def close(self):
+        self._cur.close()
+
+
+class _DictConnection:
+    """Wraps a connection so cursor() returns _DictCursor."""
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def cursor(self):
+        return _DictCursor(self._conn.cursor())
+
+    def commit(self):
+        self._conn.commit()
+        # Sync to Turso after every commit (if Turso mode)
+        if _using_turso:
+            try:
+                self._conn.sync()
+            except Exception:
+                pass
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def execute(self, sql, params=()):
+        return self._conn.execute(sql, params)
+
+    def close(self):
+        self._conn.close()
+
+    @property
+    def row_factory(self):
+        return getattr(self._conn, "row_factory", None)
+
+    @row_factory.setter
+    def row_factory(self, value):
+        try:
+            self._conn.row_factory = value
+        except (AttributeError, TypeError):
+            pass  # libsql doesn't support this — our wrapper handles it
+
+
 def _connect():
-    """Connect to local SQLite file. Always uses sqlite3 for compatibility."""
+    """Connect to SQLite (local) or libSQL (Turso) depending on env."""
     conn = getattr(_local, "conn", None)
     if conn is not None:
         return conn
 
     db_path = Config.DB_PATH
     os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
-    conn = sqlite3.connect(db_path, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute("PRAGMA foreign_keys=ON;")
 
     if _using_turso:
-        _turso_pull(db_path)
+        # ── Turso cloud mode (embedded replica) ──
+        import libsql
+        raw = libsql.connect(
+            db_path,
+            sync_url=_turso_url,
+            auth_token=_turso_token,
+        )
+        # Pull latest from cloud
+        try:
+            raw.sync()
+            print(f"[✓] Turso: synced from cloud")
+        except Exception:
+            pass
+        conn = _DictConnection(raw)
+        print(f"[✓] Connected to Turso: {_turso_url}")
+    else:
+        # ── Local SQLite mode ──
+        raw = sqlite3.connect(db_path, check_same_thread=False)
+        raw.row_factory = sqlite3.Row
+        raw.execute("PRAGMA journal_mode=WAL;")
+        raw.execute("PRAGMA foreign_keys=ON;")
+        conn = _DictConnection(raw)
 
     _local.conn = conn
     return conn
-
-
-def _turso_pull(db_path):
-    """Download latest DB from Turso cloud (called on startup)."""
-    try:
-        import requests
-        # Turso's HTTP API: dump the database
-        headers = {"Authorization": f"Bearer {_turso_token}"}
-        url = _turso_url.replace("libsql://", "https://") + "/dump"
-        resp = requests.get(url, headers=headers, timeout=15)
-        if resp.status_code == 200 and len(resp.content) > 100:
-            # Save the dump and reopen
-            conn = _local.conn or sqlite3.connect(db_path)
-            conn.close()
-            with open(db_path, 'wb') as f:
-                f.write(resp.content)
-            print(f"[✓] Pulled DB from Turso cloud ({len(resp.content)} bytes)")
-    except Exception as e:
-        print(f"[!] Turso pull skipped: {e}")
-
-
-def _turso_push():
-    """Upload current DB to Turso cloud (called after each write)."""
-    if not _using_turso:
-        return
-    try:
-        import requests
-        db_path = Config.DB_PATH
-        headers = {"Authorization": f"Bearer {_turso_token}"}
-        url = _turso_url.replace("libsql://", "https://") + "/v2/pipeline"
-        # Use a simple pipeline to sync the local file
-        # Actually, the simplest way: use Turso's /dump endpoint in reverse
-        # But that's not supported. Instead, just read and push via pipeline.
-        # For now, we'll use a background thread to avoid blocking
-        pass
-    except Exception:
-        pass
 
 
 @contextmanager
@@ -95,11 +187,16 @@ def _columns(table: str):
     """Return the set of column names for an existing table."""
     with cursor() as c:
         rows = c.execute(f"PRAGMA table_info({table})").fetchall()
-    return {r["name"] for r in rows}
+    result = set()
+    for r in rows:
+        if isinstance(r, dict):
+            result.add(r.get("name", ""))
+        elif isinstance(r, (tuple, list)) and len(r) > 1:
+            result.add(r[1])  # PRAGMA table_info: col 1 = name
+    return result
 
 
 def _add_column(table: str, column: str, definition: str):
-    """Add a column if it doesn't exist."""
     cols = _columns(table)
     if column not in cols:
         with cursor() as c:
@@ -107,7 +204,7 @@ def _add_column(table: str, column: str, definition: str):
 
 
 def init_db():
-    """Create tables + migrate old databases."""
+    """Create tables + migrate."""
     with cursor() as c:
         c.executescript(
             """
@@ -136,7 +233,7 @@ def init_db():
                 winner_id   INTEGER,
                 final_price INTEGER NOT NULL DEFAULT 0,
                 finished_at TEXT    NOT NULL DEFAULT (datetime('now')),
-                status     TEXT    NOT NULL DEFAULT 'sold'
+                status      TEXT    NOT NULL DEFAULT 'sold'
             );
             CREATE TABLE IF NOT EXISTS guild_state (
                 guild_id       INTEGER PRIMARY KEY,
@@ -212,6 +309,14 @@ def init_db():
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_stats_season "
             "ON player_match_stats (guild_id, season_id, player_key)"
         )
+
+    if _using_turso:
+        conn = _connect()
+        try:
+            conn._conn.sync()
+            print("[✓] Database synced to Turso after init")
+        except Exception as e:
+            print(f"[!] Turso sync after init: {e}")
 
 
 # --------------------------------------------------------------------------
