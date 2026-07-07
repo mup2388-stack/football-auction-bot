@@ -106,12 +106,20 @@ class _DictConnection:
 
     def commit(self):
         self._conn.commit()
-        # Sync to Turso after every commit (if Turso mode)
+        # Sync to Turso in background (non-blocking) so commands stay fast
         if _using_turso:
             try:
-                self._conn.sync()
+                # Run sync in a thread so it doesn't block the Discord response
+                _sync_thread = threading.Thread(target=self._safe_sync, daemon=True)
+                _sync_thread.start()
             except Exception:
                 pass
+
+    def _safe_sync(self):
+        try:
+            self._conn.sync()
+        except Exception:
+            pass
 
     def rollback(self):
         self._conn.rollback()
