@@ -56,9 +56,15 @@ def add_no_cache_headers(resp):
 # ===========================================================================
 
 def _oauth_session(state=None, token=None):
+    # Build redirect URI dynamically — uses request host if env var not set
+    # This prevents the localhost fallback on deployed servers
+    redirect_uri = Config.OAUTH_REDIRECT_URI
+    if not redirect_uri or "localhost" in redirect_uri:
+        # Auto-detect from the current request
+        redirect_uri = request.host_url.rstrip('/') + '/callback'
     return OAuth2Session(
         Config.OAUTH_CLIENT_ID,
-        redirect_uri=Config.OAUTH_REDIRECT_URI,
+        redirect_uri=redirect_uri,
         scope=OAUTH_SCOPES,
         state=state,
         token=token,

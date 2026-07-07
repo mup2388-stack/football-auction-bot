@@ -444,12 +444,39 @@ def queue_consume(guild_id: int, player_key: str):
 # --------------------------------------------------------------------------
 # Player faces (SoFIFA URLs)
 # --------------------------------------------------------------------------
+_FACE_URL_MAP = None
+
+def _load_face_map():
+    """Load pre-built face URL mapping (83% coverage from SoFiFA CSV)."""
+    global _FACE_URL_MAP
+    _FACE_URL_MAP = {}
+    try:
+        import os, json as _json
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "data", "face_urls.json")
+        if os.path.exists(path):
+            with open(path) as f:
+                _FACE_URL_MAP = _json.load(f)
+            print(f"[i] Face URLs loaded: {len(_FACE_URL_MAP)} players")
+    except Exception as e:
+        print(f"[!] face_urls.json load failed: {e}")
+
+
 def get_face_url(player_key: str):
+    """Get SoFiFA face URL. Checks DB first (manual overrides via /setface),
+    then falls back to the pre-built face_urls.json mapping."""
     with db.cursor() as c:
         row = c.execute(
             "SELECT face_url FROM player_faces WHERE player_key=?", (player_key,)
         ).fetchone()
-    return row["face_url"] if row else None
+    if row and row["face_url"]:
+        return row["face_url"]
+    global _FACE_URL_MAP
+    if _FACE_URL_MAP is None:
+        _load_face_map()
+    return _FACE_URL_MAP.get(player_key)
+
+
 
 
 def set_face_url(player_key: str, url: str):
