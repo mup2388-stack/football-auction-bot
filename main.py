@@ -55,8 +55,14 @@ async def on_ready():
         except Exception as e:
             print(f"[!] Website failed to start: {e}")
     try:
-        synced = await bot.tree.sync()
-        print(f"[✓] Synced {len(synced)} commands globally.")
+        guild_id = os.getenv("GUILD_ID")
+        if guild_id:
+            guild = discord.Object(id=int(guild_id))
+            synced = await bot.tree.sync(guild=guild)
+            print(f"[✓] Synced {len(synced)} commands to guild {guild_id} (instant).")
+        else:
+            synced = await bot.tree.sync()
+            print(f"[✓] Synced {len(synced)} commands globally (may take up to 1 hour).")
     except Exception as e:
         print(f"[!] Command sync issue: {e}")
     print(f"[✓] Logged in as {bot.user} ({bot.user.id})")
