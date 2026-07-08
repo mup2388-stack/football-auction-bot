@@ -626,6 +626,12 @@ img { max-width: 100%; display: block; }
   color: var(--ink-dim);
   font-size: 13px;
 }
+.footer-credit-link {
+  color: var(--gold);
+  font-weight: 600;
+  transition: opacity 0.15s ease;
+}
+.footer-credit-link:hover { opacity: 0.75; }
 
 /* ===========================================================================
    REDUCED MOTION (mandatory for MOTION > 3)

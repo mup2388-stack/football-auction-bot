@@ -67,6 +67,16 @@ async def on_ready():
         print(f"[!] Command sync issue: {e}")
     print(f"[✓] Logged in as {bot.user} ({bot.user.id})")
     print(f"[✓] {len(P.all_players())} players loaded.")
+    # Set bot activity status - shows under the bot name in the member list
+    try:
+        await bot.change_presence(
+            activity=discord.Activity(
+                type=discord.ActivityType.watching,
+                name="FL26 auctions"
+            )
+        )
+    except Exception:
+        pass
 
 
 # --------------------------------------------------------------------------
@@ -3085,7 +3095,7 @@ async def help(interaction: discord.Interaction):
 "`/quickresult <fixture> <2-1>` — result + stats + penalties (all-in-one)\n"
         "`/testseason` — spin up a fake 32-team league to test commands"
     ), inline=False)
-    e.set_footer(text="During an auction, use the buttons under the message to bid!")
+    e.set_footer(text="Made by mumu_111111  ·  Use the buttons under the auction message to bid!")
     await interaction.followup.send(embed=e)
 
 
