@@ -131,3 +131,15 @@ document.querySelectorAll('[data-countup]').forEach((el) => {
     observer.observe(el);
   }
 });
+
+// ── Image lazy fade-in ────────────────────────────────────────────────────
+// Faces/logos fade in smoothly instead of popping. Adds .loaded when the
+// image finishes downloading so the shimmer background disappears.
+document.querySelectorAll('img').forEach((img) => {
+  if (img.complete && img.naturalWidth > 0) {
+    img.classList.add('loaded');
+  } else {
+    img.addEventListener('load', () => img.classList.add('loaded'));
+    img.addEventListener('error', () => img.classList.add('loaded'));
+  }
+});

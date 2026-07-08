@@ -46,13 +46,13 @@ OAUTH_SCOPES = ["identify", "guilds"]
 API_BASE = "https://discord.com/api"
 
 
-# Disable static file caching so CSS/JS changes always load fresh.
+# Allow short-term caching for static files (1 min) — speeds up Render
+# page loads dramatically since CSS/JS aren't re-downloaded on every click.
+# 1 minute is short enough to pick up updates, long enough to help navigation.
 @app.after_request
-def add_no_cache_headers(resp):
+def add_cache_headers(resp):
     if request.path.startswith("/static/"):
-        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        resp.headers["Pragma"] = "no-cache"
-        resp.headers["Expires"] = "0"
+        resp.headers["Cache-Control"] = "public, max-age=60"
     return resp
 
 
@@ -203,6 +203,16 @@ def _face_url(player_key: str) -> str:
 
 def _money(amount: int) -> str:
     return E.money(amount)
+
+
+# ===========================================================================
+#  HEALTH CHECK — for UptimeRobot / Render to keep the site warm 24/7
+# ===========================================================================
+@app.route("/health")
+def health():
+    """Lightweight endpoint for UptimeRobot pings. Returns 200 + minimal JSON.
+    Does NOT hit the database so it responds instantly even on slow connections."""
+    return jsonify({"status": "ok"}), 200
 
 
 # ===========================================================================

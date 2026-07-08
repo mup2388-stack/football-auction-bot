@@ -22,10 +22,12 @@ import os
 os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")
 
 import database as db
+import league as L
 from website.app import app
 
 # Create the schema (the bot isn't running here to do it). Idempotent.
 db.init_db()
+L.init()  # creates seasons, season_teams, fixtures tables
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", os.environ.get("WEB_PORT", "5000")))
