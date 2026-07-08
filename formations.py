@@ -162,18 +162,17 @@ FORMATIONS = {
     },
     "3-3-2-2": {
         "name": "3-3-2-2",
-        "desc": "3-3-2-2 — three back, wing-backs push on, two up top",
+        "desc": "3-3-2-2 - three at the back, two shadow strikers",
         "rows": [
             {"y": 0.04, "group": "FWD", "slots": [
                 _slot("ST", "L", 0.35), _slot("ST", "R", 0.65)]},
-            {"y": 0.26, "group": "MID", "slots": [
+            {"y": 0.24, "group": "MID", "slots": [
                 _slot("CAM", "L", 0.30), _slot("CAM", "R", 0.70)]},
             {"y": 0.44, "group": "MID", "slots": [
-                _slot("CM", "L", 0.25), _slot("CM", "C", 0.50), _slot("CM", "R", 0.75)]},
-            {"y": 0.68, "group": "DEF", "slots": [
-                _slot("LWB", "L", 0.10), _slot("CB", "L", 0.32),
-                _slot("CB", "C", 0.50), _slot("CB", "R", 0.68), _slot("RWB", "R", 0.90)]},
-            {"y": 0.86, "group": "GK", "slots": [_slot("GK", "C", 0.50)]},
+                _slot("CM", "L", 0.18), _slot("CM", "C", 0.50), _slot("CM", "R", 0.82)]},
+            {"y": 0.74, "group": "DEF", "slots": [
+                _slot("CB", "L", 0.22), _slot("CB", "C", 0.50), _slot("CB", "R", 0.78)]},
+            {"y": 0.87, "group": "GK", "slots": [_slot("GK", "C", 0.50)]},
         ],
     },
 
