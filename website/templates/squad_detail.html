@@ -14,14 +14,14 @@
 
 {% if is_owner %}
 <div class="edit-controls reveal">
-  <select id="formation-select" class="filter-select">
+  <select id="formation-select" class="filter-select" disabled>
     {% for f in formations_list %}
     <option value="{{ f }}" {{ 'selected' if f == formation_name else '' }}>{{ f }}</option>
     {% endfor %}
   </select>
-  <button id="btn-edit" class="filter-btn" onclick="LE.toggleEdit()">Edit Lineup</button>
-  <button id="btn-save" class="filter-btn" style="display:none; background: var(--emerald);" onclick="LE.save()">Save Lineup</button>
-  <button id="btn-cancel" class="filter-clear" style="display:none;" onclick="LE.cancel()">Cancel</button>
+  <button id="btn-edit" class="filter-btn">Edit</button>
+  <button id="btn-save" class="filter-btn" style="display:none; background: var(--emerald);">Save</button>
+  <button id="btn-cancel" class="filter-clear" style="display:none;">Cancel</button>
 </div>
 {% endif %}
 
@@ -60,19 +60,13 @@
   {% endfor %}
 </div>
 
-{# ===== TACTICS PANEL ===== #}
+{# ===== TACTICS PANEL (no buttons here — controlled by the top Edit button) ===== #}
 <div id="tactics-section" class="panel glow-card reveal" style="margin-top: 32px;">
   <div class="panel-title">FL26 TACTICS</div>
   <div id="tactics-display"></div>
-  {% if is_owner %}
-  <button id="btn-edit-tactics" class="filter-btn" style="margin-top: 16px;">Edit Tactics</button>
   <div id="tactics-editor" style="display:none; margin-top: 20px;"></div>
-  <button id="btn-save-tactics" class="filter-btn" style="display:none; margin-top: 16px; background: var(--emerald);">Save Tactics</button>
-  <button id="btn-cancel-tactics" class="filter-clear" style="display:none; margin-left: 8px;">Cancel</button>
-  {% endif %}
 </div>
 
-{% if is_owner %}
 <script>
 const FORMATIONS = {{ formations_json | safe }};
 const ROSTER = {{ roster_json | safe }};
@@ -81,64 +75,141 @@ window.__LINEUP__ = {{ lineup_json | safe }};
 window.__BENCH__ = {{ bench_json | safe }};
 window.__TACTICS__ = {{ tactics_json | safe }};
 window.__TACTICS_CONFIG__ = {{ tactics_config_json | safe }};
+window.__IS_OWNER__ = {{ 'true' if is_owner else 'false' }};
 </script>
-<script src="{{ url_for('static', filename='js/lineup-editor.js') }}"></script>
 <script src="{{ url_for('static', filename='js/tactics-editor.js') }}"></script>
+{% if is_owner %}
+<script src="{{ url_for('static', filename='js/lineup-editor.js') }}"></script>
+<script>
+// ===== UNIFIED EDIT MODE - one button controls formation + lineup + tactics =====
+function enterEditMode() {
+  document.getElementById('btn-edit').style.display = 'none';
+  document.getElementById('btn-save').style.display = '';
+  document.getElementById('btn-cancel').style.display = '';
+  var sel = document.getElementById('formation-select');
+  if (sel) sel.disabled = false;
+  LE.editMode = true;
+  LE.render();
+  TC.enterEdit();
+}
+
+function exitEditMode() {
+  window.location.href = '/squad/' + SQUAD_USER_ID;
+}
+
+async function saveAll() {
+  var btnSave = document.getElementById('btn-save');
+  var original = btnSave.textContent;
+  btnSave.textContent = 'Saving...';
+  btnSave.disabled = true;
+
+  // Build ONE payload with lineup + formation + tactics
+  var overrides = {};
+  Object.keys(LE.state).forEach(function (k) {
+    if (LE.state[k]) overrides[k] = LE.state[k];
+  });
+
+  var payload = {
+    formation: LE.currentFormation,
+    overrides: overrides,
+    tactics: TC.getTactics(),
+  };
+
+  try {
+    var resp = await fetch('/api/lineup/' + SQUAD_USER_ID, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(payload),
+    });
+
+    if (resp.status === 401) {
+      alert('Please log in first.');
+      window.location.href = '/login';
+      return;
+    }
+
+    var data;
+    try {
+      data = await resp.json();
+    } catch (parseErr) {
+      var text = await resp.text();
+      console.error('Server returned non-JSON:', text.substring(0, 200));
+      alert('Save failed. Server returned status ' + resp.status + '. Check the bot console for errors.');
+      btnSave.textContent = original;
+      btnSave.disabled = false;
+      return;
+    }
+
+    if (data.ok) {
+      window.location.href = '/squad/' + SQUAD_USER_ID;
+    } else {
+      alert('Save failed: ' + (data.error || 'Unknown error'));
+      btnSave.textContent = original;
+      btnSave.disabled = false;
+    }
+  } catch (e) {
+    alert('Network error: ' + e.message);
+    btnSave.textContent = original;
+    btnSave.disabled = false;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  var btnEdit = document.getElementById('btn-edit');
+  var btnSave = document.getElementById('btn-save');
+  var btnCancel = document.getElementById('btn-cancel');
+  if (btnEdit) btnEdit.addEventListener('click', enterEditMode);
+  if (btnSave) btnSave.addEventListener('click', saveAll);
+  if (btnCancel) btnCancel.addEventListener('click', exitEditMode);
+});
+</script>
 {% else %}
 <script>
-const FORMATIONS = {{ formations_json | safe }};
-const ROSTER = {{ roster_json | safe }};
-window.__LINEUP__ = {{ lineup_json | safe }};
-window.__BENCH__ = {{ bench_json | safe }};
-window.__TACTICS__ = {{ tactics_json | safe }};
-window.__TACTICS_CONFIG__ = {{ tactics_config_json | safe }};
-</script>
-<script>
 // read-only render
-window.addEventListener('DOMContentLoaded', () => {
-  const params = new URLSearchParams(window.location.search);
-  const fmt = params.get('formation') || '{{ formation_name }}';
-  const lineup = window.__LINEUP__;
-  const bench = window.__BENCH__;
-  const slots = FORMATIONS[fmt] || [];
+document.addEventListener('DOMContentLoaded', function () {
+  var params = new URLSearchParams(window.location.search);
+  var fmt = params.get('formation') || '{{ formation_name }}';
+  var lineup = window.__LINEUP__;
+  var bench = window.__BENCH__;
+  var slots = FORMATIONS[fmt] || [];
 
-  const pitch = document.getElementById('pitch');
+  var pitch = document.getElementById('pitch');
+  if (!pitch) return;
   pitch.innerHTML = '';
-  slots.forEach((slot, i) => {
-    const playerKey = lineup[i];
-    const div = document.createElement('div');
+  slots.forEach(function (slot, i) {
+    var playerKey = lineup[i];
+    var div = document.createElement('div');
     div.className = 'pitch-player';
     div.style.left = (slot.x * 100) + '%';
     div.style.top = (slot.y * 100) + '%';
     if (playerKey && ROSTER[playerKey]) {
-      const p = ROSTER[playerKey];
-      div.innerHTML = `<a href="/player/${playerKey}" class="pitch-link">
-        <img src="${p.face_url}" class="pitch-face" alt="">
-        <span class="pitch-player-name">${p.name}</span>
-        <span class="pitch-player-pos">${slot.pos}</span>
-      </a>`;
+      var p = ROSTER[playerKey];
+      div.innerHTML = '<a href="/player/' + playerKey + '" class="pitch-link">' +
+        '<img src="' + p.face_url + '" class="pitch-face" alt="">' +
+        '<span class="pitch-player-name">' + p.name + '</span>' +
+        '<span class="pitch-player-pos">' + slot.pos + '</span></a>';
     } else {
-      div.innerHTML = `<div class="pitch-empty">${slot.pos}</div>`;
+      div.innerHTML = '<div class="pitch-empty">' + slot.pos + '</div>';
     }
     pitch.appendChild(div);
   });
 
-  const benchEl = document.getElementById('bench-list');
+  var benchEl = document.getElementById('bench-list');
+  if (!benchEl) return;
   benchEl.innerHTML = '';
-  bench.forEach(key => {
-    const p = ROSTER[key];
+  bench.forEach(function (key) {
+    var p = ROSTER[key];
     if (!p) return;
-    const div = document.createElement('a');
+    var div = document.createElement('a');
     div.href = '/player/' + key;
     div.className = 'bench-player';
-    div.style.textDecoration = 'none';
-    div.innerHTML = `<img src="${p.face_url}" class="bench-face" alt="">
-      <span class="bench-name">${p.name}</span>
-      <span class="bench-pos">${p.pos}</span>`;
+    div.innerHTML = '<img src="' + p.face_url + '" class="bench-face" alt="">' +
+      '<span class="bench-name">' + p.name + '</span>' +
+      '<span class="bench-pos">' + p.pos + '</span>';
     benchEl.appendChild(div);
   });
 });
 </script>
-<script src="{{ url_for('static', filename='js/tactics-editor.js') }}"></script>
 {% endif %}
 {% endblock %}

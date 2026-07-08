@@ -18,12 +18,8 @@ const LE = {
   },
 
   toggleEdit() {
+    // Now controlled by the unified Edit button in the template — kept for compatibility
     this.editMode = !this.editMode;
-    document.getElementById('btn-edit').style.display = this.editMode ? 'none' : '';
-    document.getElementById('btn-save').style.display = this.editMode ? '' : 'none';
-    document.getElementById('btn-cancel').style.display = this.editMode ? '' : 'none';
-    const sel = document.getElementById('formation-select');
-    if (sel) sel.disabled = !this.editMode;
     this.render();
   },
 
@@ -191,46 +187,38 @@ const LE = {
       if (this.state[k]) overrides[k] = this.state[k];
     });
 
-    try {
-      const resp = await fetch('/api/lineup/' + SQUAD_USER_ID, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({
-          formation: this.currentFormation,
-          overrides: overrides,
-        }),
-      });
+    const resp = await fetch('/api/lineup/' + SQUAD_USER_ID, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        formation: this.currentFormation,
+        overrides: overrides,
+      }),
+    });
 
-      if (resp.status === 401) {
-        alert('Please log in first.');
-        window.location.href = '/login';
-        return;
-      }
-      if (resp.status === 403) {
-        const data = await resp.json();
-        alert('Not authorized: ' + (data.error || ''));
-        return;
-      }
-
-      const data = await resp.json();
-      if (data.ok) {
-        window.location.href = '/squad/' + SQUAD_USER_ID;
-      } else {
-        alert('Error: ' + (data.error || 'Unknown'));
-      }
-    } catch (e) {
-      alert('Save failed: ' + e.message);
+    if (resp.status === 401) {
+      alert('Please log in first.');
+      throw new Error('Not logged in');
     }
+    if (resp.status === 403) {
+      const data = await resp.json();
+      throw new Error(data.error || 'Not authorized');
+    }
+
+    const data = await resp.json();
+    if (!data.ok) {
+      throw new Error(data.error || 'Unknown error');
+    }
+    // Don't reload here — the unified saveAll() in the template handles that
   },
 };
 
-// formation dropdown handler
+// formation dropdown handler (button wiring is done in the template)
 document.addEventListener('DOMContentLoaded', () => {
   LE.init();
   const sel = document.getElementById('formation-select');
   if (sel) {
-    sel.disabled = true;
     sel.addEventListener('change', () => {
       if (!LE.editMode) return;
       LE.currentFormation = sel.value;

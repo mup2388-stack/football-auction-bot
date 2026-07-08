@@ -835,70 +835,92 @@ def bracket_page():
 # ===========================================================================
 @app.route("/api/lineup/<int:target_uid>", methods=["POST"])
 def save_lineup(target_uid):
-    """Save lineup overrides + formation for a manager.
+    """Save lineup overrides + formation + tactics for a manager.
     Only the logged-in owner of the squad can save."""
-    user = _current_user()
-    if not user:
-        return jsonify({"error": "Not logged in. Click Login first."}), 401
-    # Compare as strings — user_id from session is a string
-    if str(user["id"]) != str(target_uid):
-        return jsonify({"error": f"Not authorized. You are {user['id']}, this is {target_uid}'s squad."}), 403
+    try:
+        user = _current_user()
+        if not user:
+            return jsonify({"error": "Not logged in. Click Login first."}), 401
+        if str(user["id"]) != str(target_uid):
+            return jsonify({"error": "Not authorized."}), 403
 
-    data = request.json
-    if not data:
-        return jsonify({"error": "No data"}), 400
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data"}), 400
 
-    gid = _guild_id()
+        gid = _guild_id()
 
-    # change formation if requested
-    new_formation = data.get("formation")
-    if new_formation:
+        # change formation if requested
+        new_formation = data.get("formation")
+        if new_formation:
+            import formations as FM
+            if new_formation in FM.FORMATIONS:
+                E.set_formation(gid, target_uid, new_formation)
+
+        # clear existing overrides then apply new ones
+        E.clear_all_overrides(gid, target_uid)
+
+        overrides = data.get("overrides", {})
+        for slot_idx_str, player_key in overrides.items():
+            try:
+                slot_idx = int(slot_idx_str)
+                if player_key and player_key != "empty":
+                    E.set_lineup_slot(gid, target_uid, slot_idx, player_key)
+            except (ValueError, Exception):
+                pass
+
+        # save tactics if sent in the same request
+        tactics_data = data.get("tactics")
+        if tactics_data:
+            E.save_tactics(gid, target_uid, tactics_data)
+
+        # build webhook with lineup + tactics
+        team_name = E.get_team_name(gid, target_uid) or "Unknown"
         import formations as FM
-        if new_formation in FM.FORMATIONS:
-            E.set_formation(gid, target_uid, new_formation)
+        formation_name_saved = new_formation or E.get_formation(gid, target_uid)
+        formation = FM.get_formation(formation_name_saved)
+        all_slots = FM.all_slots(formation)
 
-    # clear existing overrides then apply new ones
-    E.clear_all_overrides(gid, target_uid)
+        changes_detailed = []
+        for slot_idx_str, player_key in overrides.items():
+            try:
+                slot_idx = int(slot_idx_str)
+                if player_key and player_key != "empty":
+                    p = P.get(player_key)
+                    if p:
+                        pos_code = all_slots[slot_idx]["pos"] if slot_idx < len(all_slots) else f"Slot {slot_idx+1}"
+                        changes_detailed.append(f"{pos_code}: {p['name']}")
+            except (ValueError, Exception):
+                pass
 
-    overrides = data.get("overrides", {})
-    changes = []
-    for slot_idx_str, player_key in overrides.items():
-        try:
-            slot_idx = int(slot_idx_str)
-            if player_key and player_key != "empty":
-                E.set_lineup_slot(gid, target_uid, slot_idx, player_key)
-                p = P.get(player_key)
-                if p:
-                    changes.append(f"  Slot {slot_idx+1}: {p['name']}")
-        except (ValueError, Exception):
-            pass
+        # build tactics summary for webhook
+        import tactics as T
+        tac = E.get_tactics(gid, target_uid)
+        tac_lines = []
+        tac_lines.append(f"Formation: **{FM.formation_label(formation_name_saved)}**")
+        tac_lines.append(f"Style: **{T.label(T.ATTACK_STYLE, tac['attacking_style'])}** / **{T.label(T.DEFENSIVE_STYLE, tac['defensive_style'])}**")
+        tac_lines.append(f"Build-up: **{T.label(T.BUILD_UP, tac['build_up'])}** / Press: **{T.label(T.PRESSURING, tac['pressuring'])}**")
+        for label_txt, slot_key, group in [
+            ("Atk 1", "adv_attack_1", T.ADV_ATTACK),
+            ("Atk 2", "adv_attack_2", T.ADV_ATTACK),
+            ("Def 1", "adv_defence_1", T.ADV_DEFENCE),
+            ("Def 2", "adv_defence_2", T.ADV_DEFENCE),
+        ]:
+            val = tac[slot_key]
+            if val != "off":
+                tac_lines.append(f"{label_txt}: **{T.label(group, val)}**")
 
-    # send webhook notification
-    team_name = E.get_team_name(gid, target_uid) or "Unknown"
-    import formations as FM
-    formation_name_saved = new_formation or E.get_formation(gid, target_uid)
-    formation = FM.get_formation(formation_name_saved)
-    all_slots = FM.all_slots(formation)
+        webhook_desc = "\n".join(changes_detailed[:11])
+        if tac_lines:
+            webhook_desc += "\n\n**Tactics:**\n" + "\n".join(tac_lines)
 
-    changes_detailed = []
-    for slot_idx_str, player_key in overrides.items():
-        try:
-            slot_idx = int(slot_idx_str)
-            if player_key and player_key != "empty":
-                p = P.get(player_key)
-                if p:
-                    pos_code = all_slots[slot_idx]["pos"] if slot_idx < len(all_slots) else f"Slot {slot_idx+1}"
-                    changes_detailed.append(f"{pos_code}: {p['name']}")
-        except (ValueError, Exception):
-            pass
+        _send_webhook(f"**{team_name}** - Squad Updated", webhook_desc)
 
-    _send_webhook(
-        f"**{team_name}** — Lineup Updated",
-        f"Formation: **{formation_name_saved}**\n" +
-        "\n".join(changes_detailed[:11])
-    )
-
-    return jsonify({"ok": True, "changes": len(changes_detailed)})
+        return jsonify({"ok": True, "changes": len(changes_detailed)})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/formations")
@@ -914,21 +936,24 @@ def formations_list():
 @app.route("/api/tactics/<int:target_uid>", methods=["GET", "POST"])
 def tactics_api(target_uid):
     """Get or save a manager's FL26 tactics."""
-    import tactics as T
-    if request.method == "GET":
-        return jsonify(E.get_tactics(_guild_id(), target_uid))
+    try:
+        if request.method == "GET":
+            return jsonify(E.get_tactics(_guild_id(), target_uid))
 
-    # POST — save tactics (only the owner can save)
-    user = _current_user()
-    if not user:
-        return jsonify({"error": "Not logged in."}), 401
-    if str(user["id"]) != str(target_uid):
-        return jsonify({"error": "Not authorized."}), 403
-    data = request.json
-    if not data:
-        return jsonify({"error": "No data"}), 400
-    E.save_tactics(_guild_id(), target_uid, data)
-    return jsonify({"ok": True})
+        user = _current_user()
+        if not user:
+            return jsonify({"error": "Not logged in."}), 401
+        if str(user["id"]) != str(target_uid):
+            return jsonify({"error": "Not authorized."}), 403
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data"}), 400
+        E.save_tactics(_guild_id(), target_uid, data)
+        return jsonify({"ok": True})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
 def _send_webhook(title, description):

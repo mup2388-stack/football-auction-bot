@@ -1955,10 +1955,10 @@ a.md-pill.done .md-pill-status { color: var(--emerald); }
   .filter-select { width: 100%; }
   .player-filters { flex-direction: column; }
 }
+
 /* ===========================================================================
    SKELETON LOADING + PAGE TRANSITIONS
    =========================================================================== */
-/* Skeleton shimmer — animated placeholders during page load */
 .skel {
   background: linear-gradient(90deg, var(--panel) 25%, var(--panel-hi) 37%, var(--panel) 63%);
   background-size: 400% 100%;
@@ -1969,235 +1969,145 @@ a.md-pill.done .md-pill-status { color: var(--emerald); }
   0%   { background-position: 100% 50%; }
   100% { background-position: 0 50%; }
 }
-
-/* Content fade-in on page load */
-#main-content {
-  opacity: 0;
-  transform: translateY(8px);
-}
+#main-content { opacity: 0; transform: translateY(8px); }
 #main-content.ready {
-  opacity: 1;
-  transform: translateY(0);
+  opacity: 1; transform: translateY(0);
   transition: opacity 0.35s ease, transform 0.35s ease;
 }
-
-/* Top navigation progress bar */
 #progress-bar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 3px;
-  width: 0;
+  position: fixed; top: 0; left: 0; height: 3px; width: 0;
   background: linear-gradient(90deg, var(--gold), #FF8C42);
-  z-index: 9999;
-  box-shadow: 0 0 8px var(--gold);
-  opacity: 0;
-  transition: width 0.3s ease, opacity 0.3s ease;
+  z-index: 9999; box-shadow: 0 0 8px var(--gold);
+  opacity: 0; transition: width 0.3s ease, opacity 0.3s ease;
 }
 #progress-bar.active { opacity: 1; }
 #progress-bar.done {
-  width: 100% !important;
-  opacity: 0;
+  width: 100% !important; opacity: 0;
   transition: width 0.2s ease, opacity 0.4s ease 0.1s;
 }
-
-/* Image placeholder glow while faces/logos load */
-img {
-  background: var(--panel);
-}
+img { background: var(--panel); }
 img[src*="/face/"], img[src*="/logo/"] {
   background: linear-gradient(135deg, var(--panel) 25%, var(--panel-hi) 50%, var(--panel) 75%);
   background-size: 200% 200%;
   animation: shimmer 1.8s ease infinite;
 }
 img.loaded, img[src$=".png"]:not([src*="/face/"]):not([src*="/logo/"]) {
-  background: none;
-  animation: none;
+  background: none; animation: none;
 }
 
 /* ===========================================================================
-   TACTICS PANEL — FL26 instructions editor
+   TACTICS PANEL - FL26 instructions (display + editor)
+   No nested cards. Clean two-column layout. Inline descriptions.
    =========================================================================== */
-.tactics-grid {
+
+/* Display mode */
+.tac-display-sections {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
 }
-.tactics-col-title {
+.tac-display-group {
+  display: flex; flex-direction: column; gap: 2px;
+}
+.tac-group-label {
   font-family: var(--font-display);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  color: var(--gold);
-  margin-bottom: 12px;
-  padding-bottom: 6px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  padding-bottom: 8px;
+  margin-bottom: 4px;
   border-bottom: 1px solid var(--divider);
 }
-.tactic-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 0;
+.tac-group-attack { color: var(--gold); }
+.tac-group-defence { color: var(--crimson); }
+.tac-group-adv { color: var(--teal); }
+.tac-d-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 5px 0;
   font-size: 13px;
-  border-bottom: 1px solid rgba(42,42,54,0.4);
+  border-bottom: 1px solid rgba(42, 42, 54, 0.35);
 }
-.tactic-label {
-  color: var(--ink-body);
+.tac-d-row span { color: var(--ink-muted); }
+.tac-d-row strong { color: var(--ink); font-weight: 600; }
+.tac-d-row.tac-d-off strong { color: var(--ink-dim); font-style: italic; font-weight: 400; }
+.tac-d-slider {
+  display: flex; align-items: center; gap: 8px;
 }
-.tactic-value {
-  color: var(--ink);
-  font-weight: 600;
+.tac-d-bar {
+  display: inline-block; width: 48px; height: 4px;
+  background: var(--panel-hi); border-radius: 2px; overflow: hidden;
 }
-.tactic-slider-display {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.tac-d-fill {
+  display: block; height: 100%; background: var(--gold); border-radius: 2px;
 }
-.tactic-bar {
-  display: inline-block;
-  width: 60px;
-  height: 4px;
-  background: var(--panel-hi);
-  border-radius: 2px;
-  overflow: hidden;
-}
-.tactic-bar-fill {
-  display: block;
-  height: 100%;
-  background: var(--gold);
-  border-radius: 2px;
-}
-.tactic-slider-val {
-  font-size: 12px;
-  color: var(--ink-muted);
-  font-family: var(--font-mono);
-  min-width: 16px;
-  text-align: right;
-}
-
-/* Advanced instructions grid */
-.tactics-adv-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 8px;
-}
-.tactic-adv-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 12px;
-  background: var(--panel-hi);
-  border-radius: var(--r-sm);
-  border: 1px solid var(--border);
-}
-.tactic-adv-item.adv-off {
-  opacity: 0.45;
-}
-.tactic-adv-label {
-  font-size: 11px;
-  color: var(--ink-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.tactic-adv-value {
-  font-size: 13px;
-  color: var(--ink);
-  font-weight: 600;
-}
-.tactic-adv-item.adv-off .tactic-adv-value {
-  color: var(--ink-muted);
-  font-style: italic;
-}
+.tac-d-slider b { font-size: 12px; color: var(--ink); font-family: var(--font-mono); }
 
 /* Editor mode */
-.tactic-edit-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 0;
-  border-bottom: 1px solid rgba(42,42,54,0.4);
+.tac-edit-group {
+  display: flex; flex-direction: column; gap: 14px;
+  margin-bottom: 24px;
 }
-.tactic-edit-label {
+.tac-edit-label {
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--divider);
+}
+.tac-field {
+  display: flex; flex-direction: column; gap: 5px;
+}
+.tac-field-label {
   font-size: 12px;
   color: var(--ink-body);
   font-weight: 500;
 }
-.tactic-select {
+.tac-slider-val {
+  color: var(--gold); font-family: var(--font-mono); font-weight: 700;
+}
+.tac-field-select {
   width: 100%;
   padding: 8px 10px;
   background: var(--panel-hi);
   border: 1px solid var(--border);
-  border-radius: var(--r-sm);
+  border-radius: 8px;
   color: var(--ink);
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
   outline: none;
+  transition: border-color 0.15s ease;
 }
-.tactic-select:hover, .tactic-select:focus {
-  border-color: var(--gold-dim);
+.tac-field-select:hover { border-color: var(--gold-dim); }
+.tac-field-select:focus { border-color: var(--gold); }
+.tac-field-range {
+  width: 100%; height: 4px;
+  background: var(--panel-hi); border-radius: 2px;
+  -webkit-appearance: none; appearance: none;
+  cursor: pointer; outline: none;
 }
-.tactic-slider-wrap {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.tac-field-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 16px; height: 16px;
+  background: var(--gold); border-radius: 50%; cursor: pointer;
 }
-.tactic-range {
-  flex: 1;
-  height: 4px;
-  background: var(--panel-hi);
-  border-radius: 2px;
-  -webkit-appearance: none;
-  appearance: none;
-  cursor: pointer;
-  outline: none;
+.tac-field-range::-moz-range-thumb {
+  width: 16px; height: 16px;
+  background: var(--gold); border-radius: 50%; cursor: pointer; border: none;
 }
-.tactic-range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  background: var(--gold);
-  border-radius: 50%;
-  cursor: pointer;
-}
-.tactic-range::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  background: var(--gold);
-  border-radius: 50%;
-  cursor: pointer;
-  border: none;
-}
-.tactic-slider-num {
-  font-size: 13px;
-  color: var(--gold);
-  font-weight: 700;
-  font-family: var(--font-mono);
-  min-width: 20px;
-  text-align: center;
-}
-.tactics-hint {
+.tac-field-desc {
   font-size: 11px;
   color: var(--ink-muted);
-  margin: 4px 0 8px;
-}
-.tactic-desc-box {
-  margin-top: 16px;
-  padding: 12px 14px;
-  background: rgba(255,206,96,0.05);
-  border-left: 2px solid var(--gold-dim);
-  border-radius: 4px;
-  font-size: 12px;
-  color: var(--ink-body);
   line-height: 1.5;
-  min-height: 20px;
+  margin: 0;
+  padding: 2px 0 0;
 }
-.tactic-desc-box:empty {
-  display: none;
+.tac-field-desc:empty { display: none; }
+.tac-adv-hint {
+  font-size: 11px;
+  color: var(--ink-dim);
+  margin: 0 0 4px;
 }
 
 @media (max-width: 768px) {
-  .tactics-grid { grid-template-columns: 1fr; }
-  .tactics-adv-grid { grid-template-columns: 1fr; }
+  .tac-display-sections { grid-template-columns: 1fr; gap: 20px; }
 }
