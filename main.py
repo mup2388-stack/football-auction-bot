@@ -155,9 +155,9 @@ async def _start_auction(interaction: discord.Interaction, player: dict, starter
 @bot.tree.command(description="Check your budget (or someone else's).")
 @app_commands.describe(user="Whose budget to check (defaults to you).")
 async def balance(interaction: discord.Interaction, user: discord.Member = None):
+    await interaction.response.defer()
     target = user or interaction.user
     bal = E.get_balance(interaction.guild_id, target.id)
-    await interaction.response.defer()
     squad = E.get_squad(interaction.guild_id, target.id)
     sv = E.squad_value(squad)
     net = bal + sv
@@ -184,9 +184,8 @@ async def balance(interaction: discord.Interaction, user: discord.Member = None)
 @bot.tree.command(description="View a manager's net worth, budget and top players.")
 @app_commands.describe(user="Whose profile to view (defaults to you).")
 async def profile(interaction: discord.Interaction, user: discord.Member = None):
-    target = user or interaction.user
-    E.ensure_user(interaction.guild_id, target.id)
     await interaction.response.defer()
+    target = user or interaction.user
     squad = E.get_squad(interaction.guild_id, target.id)
     bal = E.get_balance(interaction.guild_id, target.id)
     sv = E.squad_value(squad)
@@ -231,14 +230,8 @@ class BenchButton(discord.ui.View):
 @bot.tree.command(description="View a manager's best XI as a tactics-board image + bench button.")
 @app_commands.describe(user="Whose team to view (defaults to you).")
 async def team(interaction: discord.Interaction, user: discord.Member = None):
-    target = user or interaction.user
-    E.ensure_user(interaction.guild_id, target.id)
-    squad = E.get_squad(interaction.guild_id, target.id)
-    if not squad:
-        await interaction.followup.send(
-            f"{target.mention} has no players yet.", ephemeral=True)
-        return
     await interaction.response.defer(thinking=True)
+    target = user or interaction.user
     try:
         buf = SC.render_squad_card(interaction.guild_id, target.display_name,
                                    target.id, squad,
@@ -256,9 +249,9 @@ async def team(interaction: discord.Interaction, user: discord.Member = None):
 @bot.tree.command(description="View a manager's squad with player stats and season info.")
 @app_commands.describe(user="Whose squad to view (defaults to you).")
 async def squad(interaction: discord.Interaction, user: discord.Member = None):
+    await interaction.response.defer()
     target = user or interaction.user
     guild_id = interaction.guild_id
-    await interaction.response.defer()
     E.ensure_user(guild_id, target.id)
     squad = E.get_squad(guild_id, target.id)
     if not squad:
@@ -344,11 +337,11 @@ async def squad(interaction: discord.Interaction, user: discord.Member = None):
 @app_commands.describe(name="Player to look up.")
 @app_commands.autocomplete(name=all_player_autocomplete)
 async def player(interaction: discord.Interaction, name: str):
+    await interaction.response.defer(thinking=True)
     p = P.get(name)
     if not p:
         await interaction.followup.send(f"{EM.e('x')} Player not found.", ephemeral=True)
         return
-    await interaction.response.defer(thinking=True)
     try:
         buf = PC.render_player_card(p, guild_id=interaction.guild_id)
         file = discord.File(buf, filename="player.png")
@@ -367,8 +360,8 @@ async def player(interaction: discord.Interaction, name: str):
 @app_commands.describe(name="Player to view stats for.")
 @app_commands.autocomplete(name=all_player_autocomplete)
 async def playerstats(interaction: discord.Interaction, name: str):
-    p = P.get(name)
     await interaction.response.defer()
+    p = P.get(name)
     if not p:
         await interaction.followup.send("Player not found.", ephemeral=True)
         return
@@ -419,13 +412,14 @@ async def playerstats(interaction: discord.Interaction, name: str):
 @app_commands.autocomplete(player1=all_player_autocomplete)
 @app_commands.autocomplete(player2=all_player_autocomplete)
 async def compare(interaction: discord.Interaction, player1: str, player2: str):
+    await interaction.response.defer(thinking=True)
     a = P.get(player1)
     b = P.get(player2)
     if not a:
         await interaction.followup.send(f"{EM.e('x')} First player not found.", ephemeral=True)
         return
     if not b:
-        await interaction.response.send_message(f"{EM.e('x')} Second player not found.", ephemeral=True)
+        await interaction.followup.send(f"{EM.e('x')} Second player not found.", ephemeral=True)
         return
     if a["key"] == b["key"]:
         await interaction.response.send_message(f"{EM.e('x')} Pick two *different* players to compare.", ephemeral=True)
@@ -449,6 +443,7 @@ async def matchup(interaction: discord.Interaction, user: discord.Member = None)
     if them and them.id == me.id:
         await interaction.followup.send(f"{EM.e('x')} You can't match up against yourself. Pick a rival!", ephemeral=True)
         return
+    await interaction.response.defer(thinking=True)
     if them is None:
         with db.cursor() as c:
             rows = c.execute(
@@ -469,6 +464,7 @@ async def matchup(interaction: discord.Interaction, user: discord.Member = None)
             return
 
     me_count = E.squad_count(interaction.guild_id, me.id)
+    await interaction.response.defer(thinking=True)
     them_count = E.squad_count(interaction.guild_id, them.id)
     if me_count == 0:
         await interaction.response.send_message(f"{EM.e('x')} You have no players yet. Win some auctions first!", ephemeral=True)
@@ -477,7 +473,6 @@ async def matchup(interaction: discord.Interaction, user: discord.Member = None)
         await interaction.response.send_message(f"{EM.e('x')} **{them.display_name}** has no players yet.", ephemeral=True)
         return
 
-    await interaction.response.defer(thinking=True)
     try:
         me_name = E.get_team_name(interaction.guild_id, me.id) or me.display_name
         them_name = E.get_team_name(interaction.guild_id, them.id) or them.display_name
@@ -497,8 +492,8 @@ async def matchup(interaction: discord.Interaction, user: discord.Member = None)
 
 @bot.tree.command(description="Richest managers (budget + squad value).")
 async def leaderboard(interaction: discord.Interaction):
-    entries = E.leaderboard(interaction.guild_id, 10)
     await interaction.response.defer()
+    entries = E.leaderboard(interaction.guild_id, 10)
     if not entries:
         await interaction.followup.send("No data yet.", ephemeral=True)
         return
@@ -538,10 +533,10 @@ async def leaderboard(interaction: discord.Interaction):
 @app_commands.choices(group=PHASE_CHOICES)
 async def phase(interaction: discord.Interaction,
                 group: app_commands.Choice[str] = None):
-    await interaction.response.defer()
     if not is_admin(interaction.user.id):
         await interaction.followup.send(f"{EM.e('x')} Admins only.", ephemeral=True)
         return
+    await interaction.response.defer()
     counts = E.phase_counts(interaction.guild_id)
     if group is None:
         current = db.get_phase(interaction.guild_id)
@@ -576,24 +571,7 @@ async def next_cmd(interaction: discord.Interaction):
         return
     await interaction.response.defer(ephemeral=True)
 
-
-    qkey, qcount = E.queue_next(interaction.guild_id)
-    if qkey:
-        p = P.get(qkey)
-        if not p or E.is_sold(interaction.guild_id, qkey):
-            E.queue_consume(interaction.guild_id, qkey)
-            qkey, qcount = E.queue_next(interaction.guild_id)
-            p = P.get(qkey) if qkey else None
-        if p:
-            remaining = qcount - 1
-            await _start_auction(
-                interaction, p,
-                f"{interaction.user.mention} drops "
-                f"**{P.flag(p['country'])} {p['name']}** for auction!  "
-                f"_(queued — {remaining} left after this)_"
-            )
-            return
-
+    await interaction.response.defer()
     phase = db.get_phase(interaction.guild_id)
     offered = A.offered_keys(interaction.guild_id)
     pool = E.remaining_pool(interaction.guild_id, phase=phase, exclude=offered)
@@ -617,7 +595,6 @@ async def drop(interaction: discord.Interaction, name: str):
         await interaction.response.send_message(f"{EM.e('x')} Admins only.", ephemeral=True)
         return
     await interaction.response.defer(ephemeral=True)
-
     p = P.get(name)
     if not p:
         await interaction.followup.send(f"{EM.e('x')} Player not found.", ephemeral=True)
@@ -631,8 +608,8 @@ async def drop(interaction: discord.Interaction, name: str):
 
 @bot.tree.command(description="Browse players still available & drop one from the list.")
 async def pool(interaction: discord.Interaction):
-    view = PoolView(interaction.guild_id, interaction.channel, interaction.user)
     await interaction.response.defer()
+    view = PoolView(interaction.guild_id, interaction.channel, interaction.user)
     if not view.players:
         await interaction.followup.send(
             "No players available in the current phase.", ephemeral=True)
@@ -738,8 +715,8 @@ class PoolView(discord.ui.View):
 # ==========================================================================
 @bot.tree.command(description="See the most recent sales in this server.")
 async def sold(interaction: discord.Interaction):
-    sales = E.recent_sales(interaction.guild_id, 10)
     await interaction.response.defer()
+    sales = E.recent_sales(interaction.guild_id, 10)
     if not sales:
         await interaction.followup.send("No sales yet.", ephemeral=True)
         return
