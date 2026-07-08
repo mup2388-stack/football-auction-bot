@@ -469,33 +469,6 @@ def players_page():
         shown_count=min(filtered_count, 60),
         filtered_count=filtered_count,
     )
-    """List all managers who have players."""
-    gid = _guild_id()
-    with db.cursor() as c:
-        rows = c.execute(
-            "SELECT DISTINCT user_id FROM squads WHERE guild_id=?",
-            (gid,),
-        ).fetchall()
-    managers = []
-    for r in rows:
-        uid = r["user_id"]
-        team_name = E.get_team_name(gid, uid) or f"Manager {uid}"
-        squad = E.get_squad(gid, uid)
-        sv = E.squad_value(squad)
-        bal = E.get_balance(gid, uid)
-        pr = E.power_rating(gid, uid)
-        managers.append({
-            "user_id": uid,
-            "team_name": team_name,
-            "logo_url": _team_logo_url(team_name),
-            "squad_size": len(squad),
-            "squad_value": _money(sv),
-            "budget": _money(bal),
-            "net_worth": _money(sv + bal),
-            "power_rating": pr,
-        })
-    managers.sort(key=lambda m: int(m["net_worth"].replace("£", "").replace(",", "")), reverse=True)
-    return render_template("squads.html", active_page="squads", managers=managers)
 
 
 @app.route("/squad/<int:user_id>")
@@ -1016,6 +989,13 @@ def face(player_key):
 # ===========================================================================
 def run_in_thread(port=5000):
     """Start Flask in a daemon thread so it doesn't block the bot."""
+    # Ensure schema exists — when the website runs standalone (e.g. on Render
+    # without the bot), nothing else calls init_db(). Idempotent, safe to call
+    # even when the bot already did it.
+    try:
+        db.init_db()
+    except Exception as e:
+        print(f"[!] init_db failed in website: {e}")
     def _run():
         app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
     t = threading.Thread(target=_run, daemon=True)

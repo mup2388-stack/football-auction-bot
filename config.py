@@ -41,6 +41,13 @@ class Config:
 
     # --- Files ---
     DB_PATH: str = os.getenv("DB_PATH", "data/auction.db")
+
+    # --- Cloud database (Turso / libSQL) — for shared bot + 24/7 website ---
+    # If TURSO_URL is set, database.py switches to cloud mode (pure HTTP, no
+    # local file). Leave both empty to use the local sqlite3 file.
+    # Create a free DB at https://turso.tech (GitHub login, no card).
+    TURSO_URL: str = os.getenv("TURSO_URL", "")
+    TURSO_AUTH_TOKEN: str = os.getenv("TURSO_AUTH_TOKEN", "")
     # --- Custom server emojis (optional) ---
     # Upload the PNGs from emojis/custom/ to your Discord server
     # (Server Settings > Emoji), then paste the emoji ID here.
@@ -71,5 +78,4 @@ def is_admin(user_id: int) -> bool:
     if not Config.ADMIN_IDS:
         return True
     return user_id in Config.ADMIN_IDS
-
 
