@@ -87,6 +87,8 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   min-height: 100vh;
+  overflow-x: hidden;   /* kill horizontal scroll on mobile */
+  width: 100%;
 }
 
 a { color: var(--gold); text-decoration: none; transition: color 0.15s; }
@@ -1810,11 +1812,14 @@ a.md-pill.done .md-pill-status { color: var(--emerald); }
   /* ── Nav: hide desktop links, show hamburger ─────────────── */
   .nav-links { display: none; }
   .nav-auth-desktop { display: none; }
-  .nav-hamburger { display: flex; }
-  .nav-inner { padding: 0 12px; }
+  .nav-hamburger {
+    display: flex;
+    margin-left: auto;   /* push hamburger to the far right */
+  }
+  .nav-inner { padding: 0 16px; }
   .nav-brand { font-size: 18px; }
 
-  /* Mobile slide-down menu */
+  /* Mobile slide-down menu - panel style */
   .mobile-menu {
     display: flex;
     flex-direction: column;
@@ -1828,40 +1833,47 @@ a.md-pill.done .md-pill-status { color: var(--emerald); }
     padding: 0;
     max-height: 0;
     overflow: hidden;
-    transition: max-height 0.4s cubic-bezier(0.16, 1, 0.3, 1), padding 0.3s;
+    transition: max-height 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    -webkit-overflow-scrolling: touch;
   }
   .mobile-menu.open {
-    max-height: 500px;
-    padding: 8px 0 16px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    max-height: 560px;
+    padding: 8px 0 20px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  }
+
+  /* staggered reveal - each item fades + slides in (reactbits list feel) */
+  .mobile-menu.open .mobile-menu-link,
+  .mobile-menu.open .mobile-menu-divider {
+    animation: menuReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation-delay: calc(var(--stagger, 0) * 45ms + 80ms);
+  }
+  @keyframes menuReveal {
+    from { opacity: 0; transform: translateX(-16px); }
+    to   { opacity: 1; transform: translateX(0); }
   }
 
   .mobile-menu-link {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 20px;
+    gap: 12px;
+    padding: 14px 22px;
     color: var(--ink-body);
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
     text-decoration: none;
-    border-left: 3px solid transparent;
-    transition: all 0.15s;
+    transition: background 0.15s, color 0.15s;
   }
   .mobile-menu-link:hover, .mobile-menu-link.active {
     color: var(--gold);
     background: var(--panel);
-    border-left-color: var(--gold);
   }
   .mobile-menu-divider {
     height: 1px;
     background: var(--divider);
-    margin: 8px 20px;
+    margin: 6px 22px;
   }
-  .mobile-menu-login {
-    color: #5865F2;
-    font-weight: 700;
-  }
+  .mobile-menu-login { color: #5865F2; font-weight: 700; }
 
   /* ── Layout ──────────────────────────────────────────────── */
   :root {
@@ -2110,4 +2122,59 @@ img.loaded, img[src$=".png"]:not([src*="/face/"]):not([src*="/logo/"]) {
 
 @media (max-width: 768px) {
   .tac-display-sections { grid-template-columns: 1fr; gap: 20px; }
+}
+
+/* ===========================================================================
+   PAGINATION
+   =========================================================================== */
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 32px 0 16px;
+  padding: 16px 0;
+}
+.page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--ink-body);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+}
+.page-btn:hover {
+  background: var(--panel-hi);
+  border-color: var(--gold-dim);
+  color: var(--gold);
+}
+.page-current {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--bg);
+  cursor: default;
+}
+.page-current:hover {
+  background: var(--gold);
+  color: var(--bg);
+}
+.page-ellipsis {
+  color: var(--ink-dim);
+  padding: 0 4px;
+}
+
+@media (max-width: 480px) {
+  .pagination { gap: 4px; }
+  .page-btn { min-width: 34px; height: 34px; padding: 0 8px; font-size: 13px; }
 }

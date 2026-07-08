@@ -460,10 +460,27 @@ def players_page():
             "owner_team": owner_team,
         })
 
-    # sort by OVR desc, limit to 60 for performance
+    # sort by OVR desc
     filtered_count = len(results)
     results.sort(key=lambda x: x["ovr"], reverse=True)
-    results = results[:60]
+
+    # pagination
+    per_page = 30
+    page = request.args.get("page", 1, type=int)
+    if page < 1:
+        page = 1
+    total_pages = max(1, (filtered_count + per_page - 1) // per_page)
+    start = (page - 1) * per_page
+    page_results = results[start:start + per_page]
+
+    # build a filter query string (without page) so pagination links keep filters
+    from urllib.parse import urlencode
+    filter_params = {}
+    for k in ("q", "pos", "status", "min_ovr", "club", "nation", "max_age"):
+        v = request.args.get(k)
+        if v and str(v) != "0" and str(v) != "ALL":
+            filter_params[k] = v
+    filter_qs = urlencode(filter_params)
 
     # unique nations for the filter dropdown
     nations = sorted(set(p.get("country", "") for p in all_players if p.get("country")))
@@ -471,13 +488,16 @@ def players_page():
     return render_template(
         "players.html",
         active_page="players",
-        players=results,
+        players=page_results,
         q=q, pos=pos, status=status, min_ovr=min_ovr or 0,
         club=club_filter, nation=nation, max_age=max_age or 0,
         nations=nations,
         total_count=len(all_players),
-        shown_count=min(filtered_count, 60),
         filtered_count=filtered_count,
+        shown_count=min(len(page_results), per_page),
+        page=page,
+        total_pages=total_pages,
+        filter_qs=filter_qs,
     )
 
 

@@ -187,6 +187,37 @@ def team_name_of(season_id: int, user_id: int) -> str:
         return row["team_name"] if row and row["team_name"] else None
 
 
+def set_team_name(season_id: int, user_id: int, team_name: str):
+    """Assign or update a team name for a manager in a season."""
+    with db.cursor() as c:
+        c.execute(
+            "UPDATE season_teams SET team_name=? WHERE season_id=? AND user_id=?",
+            (team_name, season_id, user_id),
+        )
+
+
+def undrawn_managers(season_id: int) -> list:
+    """Managers in a season who don't have a team_name yet."""
+    with db.cursor() as c:
+        rows = c.execute(
+            "SELECT * FROM season_teams WHERE season_id=? AND "
+            "(team_name IS NULL OR team_name = '') ORDER BY seed",
+            (season_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def drawn_teams(season_id: int) -> list:
+    """Team names already assigned in this season."""
+    with db.cursor() as c:
+        rows = c.execute(
+            "SELECT team_name FROM season_teams WHERE season_id=? "
+            "AND team_name IS NOT NULL AND team_name != ''",
+            (season_id,),
+        ).fetchall()
+    return [r["team_name"] for r in rows]
+
+
 # ──────────────────────────────────────────────────────────────────────────
 #  Fixture generation
 # ──────────────────────────────────────────────────────────────────────────

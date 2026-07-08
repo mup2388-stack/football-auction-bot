@@ -1594,11 +1594,10 @@ async def season_setup(interaction: discord.Interaction,
         f"When ready, `/season start` generates all fixtures.", ephemeral=True)
 
 
-@season_group.command(name="add", description="Add a team to the season")
-@app_commands.describe(user="The manager to add", name="Team name (defaults to their Discord name)")
+@season_group.command(name="add", description="Add a manager to the season (team assigned in the draw)")
+@app_commands.describe(user="The manager to add")
 async def season_add(interaction: discord.Interaction,
-                     user: discord.Member,
-                     name: str = None):
+                     user: discord.Member):
     await interaction.response.defer()
     if not is_admin(interaction.user.id):
         await interaction.followup.send(f"{EM.e('x')} Admins only.", ephemeral=True)
@@ -1610,14 +1609,12 @@ async def season_add(interaction: discord.Interaction,
             f"{EM.e('x')} No active season. Create one first with `/season setup`.",
             ephemeral=True)
         return
-    team_name = name or user.display_name
     E.ensure_user(guild_id, user.id)
-    E.set_team_name(guild_id, user.id, team_name)
-    seed = L.add_team_auto_seed(s["id"], user.id, team_name=team_name)
+    seed = L.add_team_auto_seed(s["id"], user.id, team_name=None)
     n = len(L.teams(s["id"]))
     await interaction.followup.send(
-        f"**{team_name}** ({user.mention}) added to Season {s['number']} as seed #{seed}.\n"
-        f"{n} team(s) registered so far.")
+        f"{user.mention} added to Season {s['number']} as seed #{seed}.\n"
+        f"{n} manager(s) registered. Team will be assigned in the draw (`/season draw`).")
 
 
 @season_group.command(name="remove", description="Remove a team from the season")
@@ -1668,6 +1665,174 @@ async def season_teams(interaction: discord.Interaction):
     await interaction.followup.send(embed=e)
 
 
+# ==========================================================================
+#  DRAW CEREMONY (/season draw)
+# ==========================================================================
+
+# The pool of clubs that get randomly assigned. Edit this list freely.
+DRAW_CLUBS = [
+    "Real Madrid", "Manchester City", "Bayern Munich", "Liverpool",
+    "Barcelona", "Inter Milan", "Atletico Madrid", "AC Milan",
+    "Chelsea", "Arsenal", "Juventus", "Napoli",
+    "Tottenham Hotspur", "Manchester United", "Borussia Dortmund", "Paris Saint-Germain",
+    "Atalanta", "AS Roma", "Bayer Leverkusen", "Sevilla",
+    "RB Leipzig", "Lazio", "Benfica", "Porto",
+    "Ajax", "PSV Eindhoven", "Sporting CP", "Olympiacos",
+    "Shakhtar Donetsk", "Celtic", "Rangers", "Galatasaray",
+]
+
+
+class DrawView(discord.ui.View):
+    """Interactive team draw. Each button click reveals one manager's team."""
+
+    def __init__(self, guild_id, season_id, season_number, guild=None):
+        super().__init__(timeout=600)
+        self.guild_id = guild_id
+        self.season_id = season_id
+        self.season_number = season_number
+        # store the guild object for member lookups during _build_embed
+        self._guild = guild
+
+    def _build_embed(self):
+        tms = L.teams(self.season_id)
+        undrawn_ids = {m["user_id"] for m in L.undrawn_managers(self.season_id)}
+        drawn_count = len(tms) - len(undrawn_ids)
+        clubs_left = len(DRAW_CLUBS) - drawn_count
+
+        e = discord.Embed(
+            title=f"Season {self.season_number} - Draw Ceremony",
+            color=C.AMBER,
+        )
+
+        lines = []
+        for t in tms:
+            member = self._member(t["user_id"])
+            if t["team_name"]:
+                tag = EM.club_tag(t["team_name"])
+                lines.append(f"{member} - **{tag}**")
+            else:
+                lines.append(f"{member} - _Not Drawn_")
+        e.description = "\n".join(lines)
+
+        if undrawn_ids:
+            e.set_footer(text=f"{len(undrawn_ids)} waiting - {clubs_left} clubs left - click Draw Next")
+        else:
+            e.set_footer(text="Draw complete! Use /season start to generate fixtures.")
+        return e
+
+    def _member(self, uid):
+        """Best-effort member mention. Returns a raw mention string or fallback."""
+        guild = self._guild
+        if guild:
+            m = guild.get_member(uid)
+            if m:
+                return m.mention
+        return f"<@{uid}>"
+
+    @discord.ui.button(label="Draw Next Team", style=discord.ButtonStyle.primary, row=0)
+    async def draw_next(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_admin(interaction.user.id):
+            await interaction.response.send_message(
+                f"{EM.e('x')} Only admins can draw.", ephemeral=True)
+            return
+
+        undrawn = L.undrawn_managers(self.season_id)
+        if not undrawn:
+            await interaction.response.edit_message(embed=self._build_embed(), view=None)
+            return
+
+        already_taken = set(L.drawn_teams(self.season_id))
+        pool = [c for c in DRAW_CLUBS if c not in already_taken]
+
+        if not pool:
+            await interaction.response.send_message(
+                "No more clubs left in the pot.", ephemeral=True)
+            return
+
+        manager = undrawn[0]
+        club = random.choice(pool)
+
+        L.set_team_name(self.season_id, manager["user_id"], club)
+        E.set_team_name(self.guild_id, manager["user_id"], club)
+
+        # ping the drawn manager in the message content
+        member = interaction.guild.get_member(manager["user_id"])
+        ping = member.mention if member else f"<@{manager['user_id']}>"
+
+        undrawn_left = len(undrawn) - 1
+        # just keep editing the same growing list - no separate "Team Drawn" embed
+        if undrawn_left > 0:
+            await interaction.response.edit_message(content=ping, embed=self._build_embed(), view=self)
+        else:
+            await interaction.response.edit_message(content=ping, embed=self._build_embed(), view=None)
+
+    @discord.ui.button(label="Draw All (Instant)", style=discord.ButtonStyle.secondary, row=0)
+    async def draw_all(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_admin(interaction.user.id):
+            await interaction.response.send_message(
+                f"{EM.e('x')} Only admins can draw.", ephemeral=True)
+            return
+
+        undrawn = L.undrawn_managers(self.season_id)
+        already_taken = set(L.drawn_teams(self.season_id))
+        pool = [c for c in DRAW_CLUBS if c not in already_taken]
+        random.shuffle(pool)
+
+        assigned = 0
+        for m in undrawn:
+            if not pool:
+                break
+            club = pool.pop(0)
+            L.set_team_name(self.season_id, m["user_id"], club)
+            E.set_team_name(self.guild_id, m["user_id"], club)
+            assigned += 1
+
+        e = discord.Embed(
+            title=f"{EM.e('check')} Draw Complete!",
+            description=f"**{assigned}** teams assigned.",
+            color=C.EMERALD,
+        )
+        e.set_footer(text="Use /season start to generate fixtures.")
+        await interaction.response.edit_message(embed=e, view=None)
+        await interaction.followup.send(embed=self._build_embed())
+
+
+@season_group.command(name="draw", description="Run the team draw ceremony (randomly assigns clubs to managers)")
+async def season_draw(interaction: discord.Interaction):
+    await interaction.response.defer()
+    if not is_admin(interaction.user.id):
+        await interaction.followup.send(f"{EM.e('x')} Admins only.", ephemeral=True)
+        return
+    guild_id = interaction.guild_id
+    s = L.active_season(guild_id)
+    if not s:
+        await interaction.followup.send(f"{EM.e('x')} No active season.", ephemeral=True)
+        return
+
+    tms = L.teams(s["id"])
+    if not tms:
+        await interaction.followup.send(
+            f"{EM.e('x')} No managers added yet. Use `/season add @user` first.",
+            ephemeral=True)
+        return
+
+    undrawn = L.undrawn_managers(s["id"])
+    if not undrawn:
+        await interaction.followup.send(
+            f"{EM.e('check')} All managers already have teams. The draw is done.",
+            ephemeral=True)
+        return
+
+    if len(tms) > len(DRAW_CLUBS):
+        await interaction.followup.send(
+            f"{EM.e('x')} {len(tms)} managers but only {len(DRAW_CLUBS)} clubs in the pot. "
+            f"Add more clubs to DRAW_CLUBS in main.py.", ephemeral=True)
+        return
+
+    view = DrawView(guild_id, s["id"], s["number"], guild=interaction.guild)
+    await interaction.followup.send(embed=view._build_embed(), view=view)
+
+
 @season_group.command(name="start", description="Generate fixtures and start the season")
 async def season_start(interaction: discord.Interaction):
     await interaction.response.defer()
@@ -1685,6 +1850,13 @@ async def season_start(interaction: discord.Interaction):
     tms = L.teams(s["id"])
     if len(tms) < 2:
         await interaction.followup.send(f"{EM.e('x')} Need at least 2 teams.", ephemeral=True)
+        return
+    # Check all managers have teams drawn
+    undrawn = L.undrawn_managers(s["id"])
+    if undrawn:
+        await interaction.followup.send(
+            f"{EM.e('x')} {len(undrawn)} manager(s) still need a team. "
+            f"Run `/season draw` first.", ephemeral=True)
         return
     try:
         L.generate_fixtures(s["id"])
