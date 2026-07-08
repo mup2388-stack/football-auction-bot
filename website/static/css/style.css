@@ -2014,3 +2014,190 @@ img.loaded, img[src$=".png"]:not([src*="/face/"]):not([src*="/logo/"]) {
   background: none;
   animation: none;
 }
+
+/* ===========================================================================
+   TACTICS PANEL — FL26 instructions editor
+   =========================================================================== */
+.tactics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.tactics-col-title {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--divider);
+}
+.tactic-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(42,42,54,0.4);
+}
+.tactic-label {
+  color: var(--ink-body);
+}
+.tactic-value {
+  color: var(--ink);
+  font-weight: 600;
+}
+.tactic-slider-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tactic-bar {
+  display: inline-block;
+  width: 60px;
+  height: 4px;
+  background: var(--panel-hi);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.tactic-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+  border-radius: 2px;
+}
+.tactic-slider-val {
+  font-size: 12px;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  min-width: 16px;
+  text-align: right;
+}
+
+/* Advanced instructions grid */
+.tactics-adv-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 8px;
+}
+.tactic-adv-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  background: var(--panel-hi);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+}
+.tactic-adv-item.adv-off {
+  opacity: 0.45;
+}
+.tactic-adv-label {
+  font-size: 11px;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tactic-adv-value {
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 600;
+}
+.tactic-adv-item.adv-off .tactic-adv-value {
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
+/* Editor mode */
+.tactic-edit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(42,42,54,0.4);
+}
+.tactic-edit-label {
+  font-size: 12px;
+  color: var(--ink-body);
+  font-weight: 500;
+}
+.tactic-select {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--panel-hi);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+.tactic-select:hover, .tactic-select:focus {
+  border-color: var(--gold-dim);
+}
+.tactic-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tactic-range {
+  flex: 1;
+  height: 4px;
+  background: var(--panel-hi);
+  border-radius: 2px;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  outline: none;
+}
+.tactic-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--gold);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.tactic-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--gold);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+.tactic-slider-num {
+  font-size: 13px;
+  color: var(--gold);
+  font-weight: 700;
+  font-family: var(--font-mono);
+  min-width: 20px;
+  text-align: center;
+}
+.tactics-hint {
+  font-size: 11px;
+  color: var(--ink-muted);
+  margin: 4px 0 8px;
+}
+.tactic-desc-box {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: rgba(255,206,96,0.05);
+  border-left: 2px solid var(--gold-dim);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--ink-body);
+  line-height: 1.5;
+  min-height: 20px;
+}
+.tactic-desc-box:empty {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .tactics-grid { grid-template-columns: 1fr; }
+  .tactics-adv-grid { grid-template-columns: 1fr; }
+}

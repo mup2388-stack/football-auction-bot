@@ -575,6 +575,29 @@ def squad_detail(user_id):
         groups[g].sort(key=lambda p: p["ovr"], reverse=True)
 
     import json as _json
+    import tactics as T
+
+    # Tactics data for the tactics editor
+    tactics_data = E.get_tactics(gid, user_id)
+
+    # Build choice lists for the JS editor
+    def _choices(group):
+        return [{"value": k, "label": v["label"], "desc": v["desc"]} for k, v in group.items()]
+
+    tactics_config = {
+        "attack_style": _choices(T.ATTACK_STYLE),
+        "build_up": _choices(T.BUILD_UP),
+        "attack_area": _choices(T.ATTACK_AREA),
+        "positioning": _choices(T.POSITIONING),
+        "defensive_style": _choices(T.DEFENSIVE_STYLE),
+        "containment_area": _choices(T.CONTAINMENT_AREA),
+        "pressuring": _choices(T.PRESSURING),
+        "sliders": {k: {"label": v["label"], "desc": v["desc"],
+                         "min": v["min"], "max": v["max"]} for k, v in T.SLIDERS.items()},
+        "adv_attack": _choices(T.ADV_ATTACK),
+        "adv_defence": _choices(T.ADV_DEFENCE),
+    }
+
     return render_template(
         "squad_detail.html",
         active_page="squads",
@@ -594,6 +617,8 @@ def squad_detail(user_id):
         groups=groups,
         face_url=_face_url,
         is_owner=_current_user() and str(_current_user()["id"]) == str(user_id),
+        tactics_json=_json.dumps(tactics_data),
+        tactics_config_json=_json.dumps(tactics_config),
     )
 
 
@@ -884,6 +909,26 @@ def formations_list():
         "formations": FM.FORMATION_NAMES,
         "default": FM.DEFAULT_FORMATION,
     })
+
+
+@app.route("/api/tactics/<int:target_uid>", methods=["GET", "POST"])
+def tactics_api(target_uid):
+    """Get or save a manager's FL26 tactics."""
+    import tactics as T
+    if request.method == "GET":
+        return jsonify(E.get_tactics(_guild_id(), target_uid))
+
+    # POST — save tactics (only the owner can save)
+    user = _current_user()
+    if not user:
+        return jsonify({"error": "Not logged in."}), 401
+    if str(user["id"]) != str(target_uid):
+        return jsonify({"error": "Not authorized."}), 403
+    data = request.json
+    if not data:
+        return jsonify({"error": "No data"}), 400
+    E.save_tactics(_guild_id(), target_uid, data)
+    return jsonify({"ok": True})
 
 
 def _send_webhook(title, description):

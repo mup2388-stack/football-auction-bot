@@ -60,6 +60,18 @@
   {% endfor %}
 </div>
 
+{# ===== TACTICS PANEL ===== #}
+<div id="tactics-section" class="panel glow-card reveal" style="margin-top: 32px;">
+  <div class="panel-title">FL26 TACTICS</div>
+  <div id="tactics-display"></div>
+  {% if is_owner %}
+  <button id="btn-edit-tactics" class="filter-btn" style="margin-top: 16px;">Edit Tactics</button>
+  <div id="tactics-editor" style="display:none; margin-top: 20px;"></div>
+  <button id="btn-save-tactics" class="filter-btn" style="display:none; margin-top: 16px; background: var(--emerald);">Save Tactics</button>
+  <button id="btn-cancel-tactics" class="filter-clear" style="display:none; margin-left: 8px;">Cancel</button>
+  {% endif %}
+</div>
+
 {% if is_owner %}
 <script>
 const FORMATIONS = {{ formations_json | safe }};
@@ -67,14 +79,19 @@ const ROSTER = {{ roster_json | safe }};
 const SQUAD_USER_ID = "{{ user_id }}";
 window.__LINEUP__ = {{ lineup_json | safe }};
 window.__BENCH__ = {{ bench_json | safe }};
+window.__TACTICS__ = {{ tactics_json | safe }};
+window.__TACTICS_CONFIG__ = {{ tactics_config_json | safe }};
 </script>
 <script src="{{ url_for('static', filename='js/lineup-editor.js') }}"></script>
+<script src="{{ url_for('static', filename='js/tactics-editor.js') }}"></script>
 {% else %}
 <script>
 const FORMATIONS = {{ formations_json | safe }};
 const ROSTER = {{ roster_json | safe }};
 window.__LINEUP__ = {{ lineup_json | safe }};
 window.__BENCH__ = {{ bench_json | safe }};
+window.__TACTICS__ = {{ tactics_json | safe }};
+window.__TACTICS_CONFIG__ = {{ tactics_config_json | safe }};
 </script>
 <script>
 // read-only render
@@ -122,5 +139,6 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 });
 </script>
+<script src="{{ url_for('static', filename='js/tactics-editor.js') }}"></script>
 {% endif %}
 {% endblock %}

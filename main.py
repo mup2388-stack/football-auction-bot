@@ -1231,6 +1231,64 @@ async def resetlineup(interaction: discord.Interaction):
 
 
 # ==========================================================================
+#  TACTICS  (/tactics) — FL26 attacking/defensive/advanced instructions
+# ==========================================================================
+import tactics as T
+
+@bot.tree.command(description="View or set your FL26 match tactics.")
+@app_commands.describe(user="Whose tactics to view (defaults to you).")
+async def tactics(interaction: discord.Interaction, user: discord.Member = None):
+    target = user or interaction.user
+    await interaction.response.defer()
+    t = E.get_tactics(interaction.guild_id, target.id)
+    fmt_name = E.get_formation(interaction.guild_id, target.id)
+    fmt_label = FM.formation_label(fmt_name)
+
+    e = discord.Embed(
+        title=f"{EM.e('manager')} {target.display_name} — Tactics",
+        description=f"Formation: **{fmt_label}**",
+        color=C.OBSIDIAN,
+    )
+
+    # Attacking
+    e.add_field(name="ATTACKING", value=(
+        f"Style: **{T.label(T.ATTACK_STYLE, t['attacking_style'])}**\n"
+        f"Build-up: **{T.label(T.BUILD_UP, t['build_up'])}**\n"
+        f"Attacking Area: **{T.label(T.ATTACK_AREA, t['attacking_area'])}**\n"
+        f"Positioning: **{T.label(T.POSITIONING, t['positioning'])}**\n"
+        f"Support Range: **{t['support_range']}/10**"
+    ), inline=True)
+
+    # Defensive
+    e.add_field(name="DEFENSIVE", value=(
+        f"Style: **{T.label(T.DEFENSIVE_STYLE, t['defensive_style'])}**\n"
+        f"Containment: **{T.label(T.CONTAINMENT_AREA, t['containment_area'])}**\n"
+        f"Pressuring: **{T.label(T.PRESSURING, t['pressuring'])}**\n"
+        f"Defensive Line: **{t['defensive_line']}/10**\n"
+        f"Compactness: **{t['compactness']}/10**"
+    ), inline=True)
+
+    # Advanced
+    adv_lines = []
+    for slot, group, label_prefix in [
+        ("adv_attack_1", T.ADV_ATTACK, "Attacking 1"),
+        ("adv_attack_2", T.ADV_ATTACK, "Attacking 2"),
+        ("adv_defence_1", T.ADV_DEFENCE, "Defence 1"),
+        ("adv_defence_2", T.ADV_DEFENCE, "Defence 2"),
+    ]:
+        val = t[slot]
+        if val == "off":
+            adv_lines.append(f"{label_prefix}: _Off_")
+        else:
+            adv_lines.append(f"{label_prefix}: **{T.label(group, val)}**")
+    e.add_field(name="ADVANCED", value="\n".join(adv_lines), inline=False)
+
+    e.set_footer(text="Set your full tactics on the website dashboard → your squad page.")
+    e.set_thumbnail(url=target.display_avatar.url)
+    await interaction.followup.send(embed=e)
+
+
+# ==========================================================================
 #  ADMIN
 # ==========================================================================
 @bot.tree.command(description="[Admin] Give coins to a user.")

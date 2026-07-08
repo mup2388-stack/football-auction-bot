@@ -256,6 +256,40 @@ def set_formation(guild_id: int, user_id: int, formation: str):
         )
 
 
+# ── Tactics (attacking/defensive/advanced instructions) ──
+
+def get_tactics(guild_id: int, user_id: int) -> dict:
+    """Get a manager's full tactic settings (normalized with defaults)."""
+    import tactics as T
+    import json as _json
+    with db.cursor() as c:
+        row = c.execute(
+            "SELECT data FROM tactics WHERE guild_id=? AND user_id=?",
+            (guild_id, user_id),
+        ).fetchone()
+    if row and row["data"]:
+        try:
+            raw = _json.loads(row["data"])
+        except (ValueError, TypeError):
+            raw = {}
+        return T.normalize(raw)
+    return T.default_tactics()
+
+
+def save_tactics(guild_id: int, user_id: int, data: dict):
+    """Save tactic settings (normalized before storage)."""
+    import tactics as T
+    import json as _json
+    ensure_user(guild_id, user_id)
+    normalized = T.normalize(data)
+    with db.cursor() as c:
+        c.execute(
+            "INSERT INTO tactics (guild_id, user_id, data) VALUES (?, ?, ?) "
+            "ON CONFLICT(guild_id, user_id) DO UPDATE SET data=excluded.data",
+            (guild_id, user_id, _json.dumps(normalized)),
+        )
+
+
 def get_lineup_overrides(guild_id: int, user_id: int) -> dict:
     """Returns {slot_index: player_key} for manually assigned slots."""
     with db.cursor() as c:

@@ -428,6 +428,12 @@ def init_db():
                 player_key  TEXT    NOT NULL,
                 PRIMARY KEY (guild_id, user_id, player_key)
             );
+            CREATE TABLE IF NOT EXISTS tactics (
+                guild_id  INTEGER NOT NULL,
+                user_id   INTEGER NOT NULL,
+                data      TEXT    NOT NULL DEFAULT '{}',
+                PRIMARY KEY (guild_id, user_id)
+            );
             """
         )
 
