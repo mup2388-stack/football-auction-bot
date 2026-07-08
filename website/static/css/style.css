@@ -1887,8 +1887,8 @@ a.md-pill.done .md-pill-status { color: var(--emerald); }
   .grid-2 { grid-template-columns: 1fr; gap: 16px; }
 
   /* ── Standings: horizontal scroll wrapper ────────────────── */
-  .panel:has(.tbl) { padding: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .tbl { font-size: 12px; min-width: 600px; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tbl { font-size: 12px; min-width: 620px; }
   .tbl th, .tbl td { padding: 8px 10px; }
   .tbl th { font-size: 10px; }
 
