@@ -74,8 +74,16 @@ def all_players():
     for p in pool:
         p = dict(p)  # copy
         p["key"] = slug(p["name"])
+        # If this key already exists (icon collides with active player),
+        # prefix with 'icon-' so BOTH versions exist in the pool.
+        is_icon = p.get("club") == "ICON"
         if p["key"] in seen:
-            continue          # de-dupe by key (curated base file wins)
+            if is_icon:
+                p["key"] = "icon-" + p["key"]
+            else:
+                continue
+        if p["key"] in seen:
+            continue
         seen.add(p["key"])
         p["value"] = market_value(p["ovr"], is_icon=(p.get("club") == "ICON"))
         p["tier"] = tier(p["ovr"])

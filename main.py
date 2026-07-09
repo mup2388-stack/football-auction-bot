@@ -83,19 +83,20 @@ async def on_ready():
 # Autocomplete
 # --------------------------------------------------------------------------
 async def player_autocomplete(interaction: discord.Interaction, current: str):
-    """Suggest players from the QUEUE (not yet sold)."""
-    sold = E.sold_player_keys(interaction.guild_id)
+    """Suggest players from the QUEUE (not yet sold) for /drop."""
     queued = E.queue_list(interaction.guild_id)
     if not queued:
         return []
+    sold = E.sold_player_keys(interaction.guild_id)
     choices = []
+    q_lower = current.lower().strip() if current else ""
     for key in queued:
         if key in sold:
             continue
         p = P.get(key)
         if not p:
             continue
-        if current and current.lower() not in p["name"].lower():
+        if q_lower and q_lower not in p["name"].lower():
             continue
         choices.append(app_commands.Choice(
             name=f"{p['name']} ({p['ovr']} OVR) {p['group']}",
@@ -654,6 +655,7 @@ class PoolView(discord.ui.View):
         self.per_page = 10
         self.phase = "Queue"
         self.players = E.queued_pool(guild_id)
+        self.players.sort(key=lambda p: p["ovr"], reverse=True)
         if self.players:
             self.refresh()
 
@@ -677,21 +679,20 @@ class PoolView(discord.ui.View):
 
     def build_embed(self):
         if not self.players:
-            return discord.Embed(title="Pool empty",
-                                 description="No players available in this phase.",
+            return discord.Embed(title="Queue empty",
+                                 description="No players in the queue.",
                                  color=C.SLATE)
         lines = []
         for i, p in enumerate(self.page_players()):
             rank = self.page * self.per_page + i + 1
             lines.append(
                 f"`#{rank:3}` {P.flag(p['country'])} **{p['name']}** "
-                f"• {p['position']} • **{p['ovr']}** • {E.money(p['value'])}"
+                f"- {p['position']} - **{p['ovr']}** - {E.money(p['value'])}"
             )
         e = discord.Embed(
-            title=f"Available Pool — phase: {self.phase}",
+            title=f"Auction Pool ({len(self.players)} players)",
             description="\n".join(lines), color=C.OBSIDIAN)
-        e.set_footer(text=f"{len(self.players)} available • Page {self.page + 1}/{self.pages} • "
-                          f"pick below to start an auction")
+        e.set_footer(text=f"Page {self.page + 1}/{self.pages} - sorted by OVR")
         return e
 
     @discord.ui.select(placeholder="Pick a player to auction...", row=0)
@@ -1476,6 +1477,29 @@ async def queue(interaction: discord.Interaction,
             f"{EM.e('check')} Loaded **{added}** available **{load_phase_val}** players "
             f"into the queue.\nUse `/next` to drop them in order, or `/queue shuffle` to randomize.")
         return
+
+
+@bot.tree.command(name="queueorder", description="[Admin] View the exact drop order of the queue (private).")
+async def queueorder(interaction: discord.Interaction):
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message(f"{EM.e('x')} Admins only.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    qpool = E.queued_pool(interaction.guild_id)
+    if not qpool:
+        await interaction.followup.send("Queue is empty.", ephemeral=True)
+        return
+    lines = []
+    for i, p in enumerate(qpool, 1):
+        lines.append(f"`#{i:3}` {P.flag(p['country'])} **{p['name']}** - {p['position']} - **{p['ovr']}**")
+    # chunk into embeds (max ~30 per embed field)
+    per = 30
+    e = discord.Embed(title="Drop Order (Private)", color=C.OBSIDIAN)
+    for start in range(0, len(lines), per):
+        chunk = lines[start:start+per]
+        e.add_field(name=f"#{start+1}-{start+len(chunk)}", value="\n".join(chunk), inline=False)
+    e.set_footer(text=f"{len(qpool)} players in queue - only you can see this")
+    await interaction.followup.send(embed=e, ephemeral=True)
 
 
 # ==========================================================================
