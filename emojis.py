@@ -119,31 +119,52 @@ def e(key: str) -> str:
 #  skip (no emoji shown for that club).
 # ===========================================================================
 CLUB_EMOJIS = {
+
     # --- Premier League ---
-    "Arsenal":           "",
-    "Chelsea":           "",
-    "Liverpool":         "",
-    "Manchester City":   "",
-    "Manchester United": "",
-    "Tottenham":         "",
+    "Manchester City":     "<:manchestercity:1522669656534679573>",
+    "Manchester United":   "<:manchester_united:1522669653644677272>",
+    "Arsenal":             "<:arsenal:1522669614868336740>",
+    "Liverpool":           "<:liverpool:1522669651283153007>",
+    "Chelsea":             "<:chelsea:1522669634346680411>",
+    "Tottenham Hotspur":   "<:tottenham:1522669667439611964>",
+    "Brighton":            "<:brighton:1524892637600157778>",
+    "Aston Villa":         "<:astonvilla:1522669617859002411>",
+    "Crystal Palace":      "<:crystalpalace:1524892640208752650>",
+    "Fulham":              "<:fulham:1524892642708820008>",
+    "Newcastle United":    "<:newcastle:1524892645149900933>",
+    "West Ham United":     "<:westham:1524893083034980513>",
+    "Brentford":           "<:brentford:1524892634869534740>",
+    "Everton":             "<:everton:1522669638448713928>",
+    "Wolves":              "<:wolves:1524893085618802820>",
 
     # --- La Liga ---
-    "Real Madrid":       "<:realmadridcf:1522669663513870436>",
-    "Barcelona":         "<:barcelona:1522669626310524958>",
-    "Atletico Madrid":   "",
-
-    # --- Bundesliga ---
-    "Bayern Munich":     "",
-    "Dortmund":          "",
+    "Real Madrid":         "<:realmadridcf:1522669663513870436>",
+    "Barcelona":           "<:barcelona:1522669626310524958>",
+    "Atletico Madrid":     "<:atleticomadrid:1522669622640509070>",
 
     # --- Serie A ---
-    "Juventus":          "",
-    "AC Milan":          "",
-    "Inter Milan":       "",
-    "Napoli":            "",
+    "Inter Milan":         "<:intermilan:1524893667222097970>",
+    "AC Milan":            "<:acmilan:1524893652122599624>",
+    "Napoli":              "<:napoli:1524893671391236146>",
+    "Juventus":            "<:juventus:1524893669277171802>",
+    "Atalanta":            "<:atalanta:1524893665095454892>",
+    "AS Roma":             "<:asroma:1524893662880862208>",
+
+    # --- Bundesliga ---
+    "Bayern Munich":       "<:bayernmunich:1522669629711974471>",
+    "Dortmund":            "<:borussiadortmund:1522669632056459374>",
+    "RB Leipzig":          "<:rbleipzig:1524896308010291292>",
+    "Bayer Leverkusen":    "<:bayerleverkusen:1524896303807594607>",
 
     # --- Ligue 1 ---
-    "PSG":               "",
+    "PSG":                 "<:parissaintgermain:1522669659030290582>",
+    "AS Monaco":           "<:asmonaco:1524896301584482364>",
+
+    # --- Saudi Pro League ---
+    "Al Nassr":            "<:alnassr:1524896299554439302>",
+
+    # --- MLS ---
+    "Inter Miami":         "<:intermiami:1524896305976049764>",
 }
 
 # ── fuzzy matching (mirrors club_logos._core_slug logic) ──────────────────

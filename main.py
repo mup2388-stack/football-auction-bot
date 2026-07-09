@@ -353,8 +353,8 @@ async def squad(interaction: discord.Interaction, user: discord.Member = None):
 
 
 @bot.tree.command(description="View a player's FULL detailed card (all stats, skills, positions).")
-@app_commands.describe(name="Player to look up.")
-@app_commands.autocomplete(name=all_player_autocomplete)
+@app_commands.describe(name="Player to look up (from the queue).")
+@app_commands.autocomplete(name=player_autocomplete)
 async def player(interaction: discord.Interaction, name: str):
     await interaction.response.defer(thinking=True)
     p = P.get(name)
@@ -672,9 +672,8 @@ class PoolView(discord.ui.View):
         for p in self.page_players():
             self.select_auction.options.append(discord.SelectOption(
                 label=f"{p['name']} ({p.get('club','')})",
-                description=f"{p['position']} • {p['ovr']} OVR • {E.money(p['value'])}",
+                description=f"{p['position']} - {p['ovr']} OVR - {E.money(p['value'])}",
                 value=p["key"],
-                emoji=P.flag(p["country"]),
             ))
 
     def build_embed(self):
@@ -1836,14 +1835,22 @@ async def season_teams(interaction: discord.Interaction):
 
 # The pool of clubs that get randomly assigned. Edit this list freely.
 DRAW_CLUBS = [
-    "Real Madrid", "Manchester City", "Bayern Munich", "Liverpool",
-    "Barcelona", "Inter Milan", "Atletico Madrid", "AC Milan",
-    "Chelsea", "Arsenal", "Juventus", "Napoli",
-    "Tottenham Hotspur", "Manchester United", "Borussia Dortmund", "Paris Saint-Germain",
-    "Atalanta", "AS Roma", "Bayer Leverkusen", "Sevilla",
-    "RB Leipzig", "Lazio", "Benfica", "Porto",
-    "Ajax", "PSV Eindhoven", "Sporting CP", "Olympiacos",
-    "Shakhtar Donetsk", "Celtic", "Rangers", "Galatasaray",
+    # Premier League
+    "Manchester City", "Manchester United", "Arsenal", "Liverpool", "Chelsea",
+    "Tottenham Hotspur", "Brighton", "Aston Villa", "Crystal Palace", "Fulham",
+    "Newcastle United", "West Ham United", "Brentford", "Everton", "Wolves",
+    # La Liga
+    "Real Madrid", "Barcelona", "Atletico Madrid",
+    # Serie A
+    "Inter Milan", "AC Milan", "Napoli", "Juventus", "Atalanta", "AS Roma",
+    # Bundesliga
+    "Bayern Munich", "Dortmund", "RB Leipzig", "Bayer Leverkusen",
+    # Ligue 1
+    "PSG", "AS Monaco",
+    # Saudi
+    "Al Nassr",
+    # MLS
+    "Inter Miami",
 ]
 
 
