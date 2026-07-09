@@ -417,6 +417,26 @@ def queue_list(guild_id: int):
     return [r["player_key"] for r in rows]
 
 
+def queued_pool(guild_id: int):
+    """Return the list of queued players (full dicts) not yet sold.
+    This is the ONLY source of auctionable players when a queue exists."""
+    sold = sold_player_keys(guild_id)
+    keys = queue_list(guild_id)
+    players = []
+    for k in keys:
+        if k in sold:
+            continue
+        p = P.get(k)
+        if p:
+            players.append(p)
+    return players
+
+
+def has_queue(guild_id: int) -> bool:
+    """True if this guild has any players in the queue."""
+    return len(queue_list(guild_id)) > 0
+
+
 def queue_add(guild_id: int, player_key: str) -> int:
     """Append a player to the end of the queue. Returns the new position (1-based)."""
     with db.cursor() as c:

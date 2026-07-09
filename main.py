@@ -83,19 +83,22 @@ async def on_ready():
 # Autocomplete
 # --------------------------------------------------------------------------
 async def player_autocomplete(interaction: discord.Interaction, current: str):
-    """Only suggest players NOT already sold in this server."""
+    """Suggest players from the QUEUE (not yet sold)."""
     sold = E.sold_player_keys(interaction.guild_id)
-    if current:
-        matches = P.search(current)
-    else:
-        # Sort ALL players (active + icons) by OVR so top-rated show first
-        matches = sorted(P.all_players(), key=lambda p: p["ovr"], reverse=True)
+    queued = E.queue_list(interaction.guild_id)
+    if not queued:
+        return []
     choices = []
-    for p in matches:
-        if p["key"] in sold:
+    for key in queued:
+        if key in sold:
+            continue
+        p = P.get(key)
+        if not p:
+            continue
+        if current and current.lower() not in p["name"].lower():
             continue
         choices.append(app_commands.Choice(
-            name=f"{p['name']} — {p.get('club','')} ({p['ovr']} OVR) · {p['group']}",
+            name=f"{p['name']} ({p['ovr']} OVR) {p['group']}",
             value=p["key"]))
         if len(choices) >= 25:
             break
@@ -597,23 +600,14 @@ async def next_cmd(interaction: discord.Interaction):
                 interaction, p,
                 f"{interaction.user.mention} drops "
                 f"**{P.flag(p['country'])} {p['name']}** for auction!  "
-                f"_(queued — {remaining} left after this)_"
+                f"_(queued - {remaining} left after this)_"
             )
             return
 
-    phase = db.get_phase(interaction.guild_id)
-    offered = A.offered_keys(interaction.guild_id)
-    pool = E.remaining_pool(interaction.guild_id, phase=phase, exclude=offered)
-    if not pool:
-        await interaction.followup.send(
-            f"No more players available in the **{phase}** phase.", ephemeral=True)
-        return
-    p = pool[0]
-    await _start_auction(
-        interaction, p,
-        f"{interaction.user.mention} drops "
-        f"**{P.flag(p['country'])} {p['name']}** for auction!  _(next in {phase})_"
-    )
+    # No queue - tell admin to load one
+    await interaction.followup.send(
+        "No players in the queue. Use `/queue bulk` to add players, "
+        "or `/queue load_phase` to load by position.", ephemeral=True)
 
 
 @bot.tree.command(description="[Admin] Nominate a specific player for auction.")
@@ -641,7 +635,8 @@ async def pool(interaction: discord.Interaction):
     view = PoolView(interaction.guild_id, interaction.channel, interaction.user)
     if not view.players:
         await interaction.followup.send(
-            "No players available in the current phase.", ephemeral=True)
+            "No players in the queue. Use `/queue bulk` or `/queue load_phase` first.",
+            ephemeral=True)
         return
     await interaction.followup.send(embed=view.build_embed(), view=view)
 
@@ -657,10 +652,8 @@ class PoolView(discord.ui.View):
         self.starter = starter
         self.page = 0
         self.per_page = 10
-        phase = db.get_phase(guild_id)
-        offered = A.offered_keys(guild_id)
-        self.phase = phase
-        self.players = E.remaining_pool(guild_id, phase=phase, exclude=offered)
+        self.phase = "Queue"
+        self.players = E.queued_pool(guild_id)
         if self.players:
             self.refresh()
 
@@ -1370,20 +1363,28 @@ async def cancel(interaction: discord.Interaction):
 @bot.tree.command(description="[Admin] Build a scripted auction queue (auto-drops from this list).")
 @app_commands.describe(
     action="What to do with the queue.",
-    name="Player to add (for 'add').",
+    name="Player name (for 'add') OR comma-separated names (for 'bulk').",
+    phase="Phase to load (for 'load phase').",
 )
 @app_commands.choices(action=[
     app_commands.Choice(name="List the queue", value="list"),
     app_commands.Choice(name="Add a player", value="add"),
-    app_commands.Choice(name="Add bulk (comma-separated names)", value="bulk"),
+    app_commands.Choice(name="Add bulk (paste comma-separated names)", value="bulk"),
     app_commands.Choice(name="Shuffle the queue (randomize order)", value="shuffle"),
     app_commands.Choice(name="Clear the queue", value="clear"),
-    app_commands.Choice(name="Load current phase (all available)", value="load_phase"),
+    app_commands.Choice(name="Load phase into queue", value="load_phase"),
 ])
-@app_commands.autocomplete(name=player_autocomplete)
+@app_commands.choices(phase=[
+    app_commands.Choice(name="All positions", value="ALL"),
+    app_commands.Choice(name="Goalkeepers", value="GK"),
+    app_commands.Choice(name="Defenders", value="DEF"),
+    app_commands.Choice(name="Midfielders", value="MID"),
+    app_commands.Choice(name="Forwards", value="FWD"),
+])
 async def queue(interaction: discord.Interaction,
                 action: app_commands.Choice[str],
-                name: str = None):
+                name: str = None,
+                phase: app_commands.Choice[str] = None):
     if not is_admin(interaction.user.id):
         await interaction.response.send_message(f"{EM.e('x')} Admins only.", ephemeral=True)
         return
@@ -1413,15 +1414,16 @@ async def queue(interaction: discord.Interaction,
         if not name:
             await interaction.followup.send("Specify a player to add.", ephemeral=True)
             return
-        p = P.get(name)
-        if not p:
+        results = P.search(name, limit=1)
+        if not results:
             await interaction.followup.send(f"{EM.e('x')} Player not found.", ephemeral=True)
             return
-        if E.is_sold(interaction.guild_id, name):
+        p = results[0]
+        if E.is_sold(interaction.guild_id, p["key"]):
             await interaction.followup.send(
                 f"{EM.e('x')} {p['name']} is already sold.", ephemeral=True)
             return
-        pos = E.queue_add(interaction.guild_id, name)
+        pos = E.queue_add(interaction.guild_id, p["key"])
         await interaction.followup.send(
             f"{EM.e('check')} Added **{P.flag(p['country'])} {p['name']}** to the queue (position #{pos}).")
         return
@@ -1465,13 +1467,14 @@ async def queue(interaction: discord.Interaction,
         return
 
     if act == "load_phase":
-        phase = db.get_phase(interaction.guild_id)
+        # Use the phase dropdown if provided, else fall back to the global phase
+        load_phase_val = phase.value if phase else db.get_phase(interaction.guild_id)
         offered = A.offered_keys(interaction.guild_id)
-        pool = E.remaining_pool(interaction.guild_id, phase=phase, exclude=offered)
+        pool = E.remaining_pool(interaction.guild_id, phase=load_phase_val, exclude=offered)
         added = E.queue_add_many(interaction.guild_id, [p["key"] for p in pool])
         await interaction.followup.send(
-            f"{EM.e('check')} Loaded **{added}** available players from the **{phase}** phase "
-            f"into the queue. Use `/next` to drop them in order.")
+            f"{EM.e('check')} Loaded **{added}** available **{load_phase_val}** players "
+            f"into the queue.\nUse `/next` to drop them in order, or `/queue shuffle` to randomize.")
         return
 
 
@@ -1644,6 +1647,134 @@ async def season_remove(interaction: discord.Interaction,
     n = len(L.teams(s["id"]))
     await interaction.followup.send(
         f"Removed {user.mention} from Season {s['number']}. {n} team(s) remain.")
+
+
+@season_group.command(name="signup", description="Add managers who reacted to a message (gives role + adds to season)")
+@app_commands.describe(
+    message_id="The message ID to check reactions on",
+    emoji="The emoji to look for (type it or paste the custom emoji)",
+    role="The role to give everyone who reacted",
+    channel="Channel containing the message (defaults to this channel)",
+)
+async def season_signup(interaction: discord.Interaction,
+                        message_id: str,
+                        emoji: str,
+                        role: discord.Role,
+                        channel: discord.TextChannel = None):
+    await interaction.response.defer()
+    if not is_admin(interaction.user.id):
+        await interaction.followup.send(f"{EM.e('x')} Admins only.", ephemeral=True)
+        return
+
+    guild_id = interaction.guild_id
+    s = L.active_season(guild_id)
+    if not s:
+        await interaction.followup.send(
+            f"{EM.e('x')} No active season. Create one first with `/season setup`.",
+            ephemeral=True)
+        return
+
+    # Resolve the target channel
+    target_channel = channel or interaction.channel
+
+    # Parse message ID
+    try:
+        msg_id = int(message_id)
+    except ValueError:
+        await interaction.followup.send(f"{EM.e('x')} Invalid message ID.", ephemeral=True)
+        return
+
+    # Fetch the message
+    try:
+        message = await target_channel.fetch_message(msg_id)
+    except discord.NotFound:
+        await interaction.followup.send(
+            f"{EM.e('x')} Message not found in {target_channel.mention}.",
+            ephemeral=True)
+        return
+    except discord.Forbidden:
+        await interaction.followup.send(
+            f"{EM.e('x')} I can't read messages there. Give me Read Message History permission.",
+            ephemeral=True)
+        return
+
+    # Find the reaction matching the emoji
+    target_reaction = None
+    for reaction in message.reactions:
+        re_str = str(reaction.emoji)
+        # Match: exact unicode, custom emoji ID match, or substring
+        if re_str == emoji or emoji in re_str or emoji.endswith(str(reaction.emoji.id if hasattr(reaction.emoji, 'id') and reaction.emoji.id else '')):
+            target_reaction = reaction
+            break
+
+    if not target_reaction:
+        await interaction.followup.send(
+            f"{EM.e('x')} No reaction with {emoji} found on that message. "
+            f"Available: {', '.join(str(r.emoji) for r in message.reactions[:10])}",
+            ephemeral=True)
+        return
+
+    # Get all users who reacted
+    try:
+        users = [u async for u in target_reaction.users()]
+    except Exception as ex:
+        await interaction.followup.send(f"{EM.e('x')} Couldn't fetch reaction users: {ex}", ephemeral=True)
+        return
+
+    # Filter out bots
+    users = [u for u in users if not u.bot]
+
+    if not users:
+        await interaction.followup.send(
+            f"{EM.e('x')} No real users reacted with {emoji}.",
+            ephemeral=True)
+        return
+
+    # Assign role + add to season
+    role_failures = 0
+    added_to_season = 0
+    already_in_season = 0
+    existing_teams = {t["user_id"] for t in L.teams(s["id"])}
+
+    for user in users:
+        # Get member object
+        member = interaction.guild.get_member(user.id)
+        if not member:
+            try:
+                member = await interaction.guild.fetch_member(user.id)
+            except Exception:
+                continue
+
+        # Add role
+        try:
+            if role not in member.roles:
+                await member.add_roles(role, reason="Season signup reaction")
+        except discord.Forbidden:
+            role_failures += 1
+        except Exception:
+            role_failures += 1
+
+        # Add to season
+        E.ensure_user(guild_id, user.id)
+        if user.id in existing_teams:
+            already_in_season += 1
+            continue
+        L.add_team_auto_seed(s["id"], user.id, team_name=None)
+        existing_teams.add(user.id)
+        added_to_season += 1
+
+    total_managers = len(L.teams(s["id"]))
+    lines = [
+        f"{EM.e('check')} **Reaction signup done!**",
+        f"Found **{len(users)}** user(s) who reacted with {emoji}",
+        f"Role **{role.name}** assigned" + (f" ({role_failures} failed - check my permissions)" if role_failures else ""),
+        f"**{added_to_season}** new manager(s) added to Season {s['number']}",
+    ]
+    if already_in_season:
+        lines.append(f"({already_in_season} were already in)")
+    lines.append(f"**{total_managers}** manager(s) total now - run `/season draw` to assign teams")
+
+    await interaction.followup.send("\n".join(lines))
 
 
 @season_group.command(name="teams", description="List all teams in the season")
@@ -3029,74 +3160,103 @@ async def importmatch(interaction: discord.Interaction,
 # ==========================================================================
 #  HELP
 # ==========================================================================
+class AdminHelpView(discord.ui.View):
+    """Button that reveals admin commands. Only shows for admins."""
+
+    def __init__(self):
+        super().__init__(timeout=120)
+
+    @discord.ui.button(label="Admin Commands", style=discord.ButtonStyle.secondary, row=0)
+    async def show_admin(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_admin(interaction.user.id):
+            await interaction.response.send_message("Admins only.", ephemeral=True)
+            return
+        e = discord.Embed(
+            title="Admin Commands",
+            color=C.OBSIDIAN,
+        )
+        e.add_field(name="Auction Control", value=(
+            "`/phase <group>` - set position day (FWD/MID/DEF/GK/ALL)\n"
+            "`/next` - drop next player (queue or top available)\n"
+            "`/drop <name>` - nominate a specific player\n"
+            "`/queue <action>` - scripted list (add, bulk, shuffle)\n"
+            "`/cancel` - stop the running auction"
+        ), inline=False)
+        e.add_field(name="Season & League", value=(
+            "`/season setup` - create a new season\n"
+            "`/season add @user` - add a manager\n"
+            "`/season signup` - add managers via message reactions\n"
+            "`/season draw` - team draw ceremony\n"
+            "`/season start` - generate fixtures and go live\n"
+            "`/season end` / `/season clear` - end or clean up"
+        ), inline=False)
+        e.add_field(name="Results & Stats", value=(
+            "`/quickresult <fixture> <2-1>` - enter result + stats\n"
+            "`/updatestats <player>` - add match stats manually\n"
+            "`/resetstats` - wipe all stats for a new season\n"
+            "`/importmatch` - upload a FL26 CSV"
+        ), inline=False)
+        e.add_field(name="Manager & Economy", value=(
+            "`/give @user <amount>` - grant budget\n"
+            "`/reset @user` - reset a manager\n"
+            "`/resetall` - reset everyone\n"
+            "`/toggletrades <true/false>` - enable/disable trades\n"
+            "`/export` / `/exportfl26` - download squad data"
+        ), inline=False)
+        e.set_footer(text="Made by mumu_111111")
+        await interaction.response.send_message(embed=e, ephemeral=True)
+
+
 @bot.tree.command(description="Show all commands.")
 async def help(interaction: discord.Interaction):
-    admin_note = "" if is_admin(interaction.user.id) else " _(admin)_"
     await interaction.response.defer()
     e = discord.Embed(
         title="Football Auction Bot",
         description=(
-            "Build your squad by winning live auctions with your budget.\n"
+            "Build your squad by winning live auctions.\n"
             f"Every manager starts with **{E.money(Config.STARTING_BALANCE)}**."
         ),
         color=C.AMBER,
     )
-    e.add_field(name="Your manager", value=(
-        "`/balance` — your budget\n"
-        "`/profile` — net worth & stars\n"
-        "`/team` — your best XI (formation card)\n"
-        "`/squad` — squad overview with match stats\n"
-        "`/leaderboard` — richest managers"
+    e.add_field(name="Your Squad", value=(
+        "`/balance` - check your budget\n"
+        "`/profile` - net worth and top players\n"
+        "`/team` - your starting XI card\n"
+        "`/squad` - full squad overview\n"
+        "`/bench` - your substitutes\n"
+        "`/leaderboard` - richest managers\n"
+        "`/needs` - what positions you still need\n"
+        "`/check` - squad requirements status"
     ), inline=False)
-    e.add_field(name="League & Matches", value=(
-        "`/season setup` — create season with format dropdown\n"
-        "`/season add @user` — add a team\n"
-        "`/season start` — generate fixtures\n"
-        "`/season info` — season info\n"
-        "`/season end` — end the season\n"
-        "`/fixtures [matchday]` — view upcoming matches\n"
-        
-        "`/table [group]` — live standings\n"
-"`/h2h @user1 @user2` — head-to-head record\n"
-"`/archive` — browse past seasons\n"
-        "`/bracket` — knockout bracket\n"
-        "`/koresult <fixture> <winner>` — set KO winner after draws (admin)"
+    e.add_field(name="Players", value=(
+        "`/player <name>` - view a player card\n"
+        "`/playerstats <name>` - match stats for a player\n"
+        "`/compare <p1> <p2>` - head-to-head duel\n"
+        "`/matchup [@user]` - your XI vs a rival\n"
+        "`/pool` - browse available players\n"
+        "`/topscorers` - golden boot race"
     ), inline=False)
-    e.add_field(name="Match Stats", value=(
-        "`/playerstats <name>` — view a player's match stats\n"
-"`/updatestats <player>` — add match stats (admin)\n"
-        "`/playerstats <name>` — view a player's match stats\n"
-"`/topscorers` — league top scorers\n"
-"`/watch <action>` — track targets, get pinged when they go up\n"
-"`/soldsearch` — search auction history\n"
-"`/draftrecap` — full draft summary\n"
-        "`/resetstats` — reset all stats for new season (admin)"
+    e.add_field(name="League", value=(
+        "`/season info` - current season status\n"
+        "`/fixtures` - upcoming matches\n"
+        "`/table` - league standings\n"
+        "`/bracket` - knockout bracket\n"
+        "`/h2h @user1 @user2` - head-to-head record\n"
+        "`/archive` - past seasons"
     ), inline=False)
-    e.add_field(name="Transfers & info", value=(
-        "`/player <name>` — view a card\n"
-        "`/compare <p1> <p2>` — head-to-head stat duel\n"
-        "`/matchup [@user]` — your XI vs a rival, position by position\n"
-        "`/pool` — browse available players\n"
-        "`/sold` — recent sales\n"
-        "`/check [@user]` — squad requirements check"
+    e.add_field(name="Transfers & Activity", value=(
+        "`/trade @user` - offer a player trade\n"
+        "`/trades` - your pending offers\n"
+        "`/sold` - recent sales\n"
+        "`/soldsearch` - search auction history\n"
+        "`/draftrecap` - draft summary\n"
+        "`/watch` - get pinged when a target goes up\n"
+        "`/formation` - set your formation\n"
+        "`/tactics` - view your FL26 tactics"
     ), inline=False)
-    e.add_field(name=f"Admin{admin_note}", value=(
-        "`/phase <group>` — set auction day (FWD/MID/DEF/GK/ALL)\n"
-        "`/next` — drop the next player (queue, else top available)\n"
-        "`/drop <name>` — nominate a specific player\n"
-        "`/queue <action>` — scripted auction list (bulk add, shuffle)\n"
-        "`/pool` — pick & drop from a list\n"
-        "`/export` — download all squads as CSV\n"
-        "`/give @user <amount>` — grant budget\n"
-        "`/reset @user` — reset a manager\n"
-        "`/cancel` — stop the running auction\n"
-        "`/toggletrades <true/false>` — enable/disable player trades\n"
-"`/quickresult <fixture> <2-1>` — fast result + stat entry (buttons)\n"
-"`/quickresult <fixture> <2-1>` — result + stats + penalties (all-in-one)\n"
-        "`/testseason` — spin up a fake 32-team league to test commands"
-    ), inline=False)
-    e.set_footer(text="Made by mumu_111111  ·  Use the buttons under the auction message to bid!")
-    await interaction.followup.send(embed=e)
+    e.set_footer(text="Made by mumu_111111")
+    view = AdminHelpView() if is_admin(interaction.user.id) else None
+    await interaction.followup.send(embed=e, view=view)
 
 
 # --------------------------------------------------------------------------

@@ -392,8 +392,17 @@ def squads():
 
 @app.route("/players")
 def players_page():
-    """Browse all players with search + filters."""
+    """Browse players from the AUCTION QUEUE (not the full database)."""
     gid = _guild_id()
+
+    # Only show players that are in the queue
+    queued_keys = set(E.queue_list(gid))
+    if queued_keys:
+        all_players = [p for p in P.all_players() if p["key"] in queued_keys]
+    else:
+        all_players = []
+
+    sold = E.sold_player_keys(gid)
 
     # filters from query params
     q = (request.args.get("q") or "").strip()
@@ -403,9 +412,6 @@ def players_page():
     club_filter = (request.args.get("club") or "").strip()
     nation = (request.args.get("nation") or "").strip()
     max_age = request.args.get("max_age", type=int)
-
-    sold = E.sold_player_keys(gid)
-    all_players = P.all_players()
 
     results = []
     for p in all_players:
