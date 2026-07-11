@@ -7,27 +7,66 @@
   <p class="page-sub">All managers and their rosters</p>
 </div>
 
-{% if managers %}
-<div class="reveal-stagger">
-  {% for m in managers %}
-  <a href="/squad/{{ m.user_id }}" class="squad-card-link">
-    <div class="squad-card glow-card panel" style="margin-bottom: 16px; display: flex; align-items: center; gap: 20px; text-decoration: none;">
-      <img src="{{ m.logo_url }}" class="squad-card-logo" alt="">
-      <div style="flex: 1;">
-        <div class="squad-card-name">{{ m.team_name }}</div>
+{# ===== MY SQUAD (logged-in manager with a roster) ===== #}
+{% if my_squad %}
+<section class="my-squad-section reveal">
+  <div class="my-squad-head">
+    <span class="my-squad-kicker">Your club</span>
+    <h2 class="my-squad-title">My Squad</h2>
+  </div>
+  <a href="/squad/{{ my_squad.user_id }}" class="squad-card-link my-squad-link">
+    <div class="squad-card glow-card panel my-squad-card">
+      <img src="{{ my_squad.logo_url }}" class="squad-card-logo" alt="">
+      <div class="my-squad-card-body">
+        <div class="squad-card-name">{{ my_squad.team_name }}</div>
         <div class="squad-card-meta">
-          {{ m.squad_size }} players &middot; {{ m.squad_value }} &middot; Power {{ m.power_rating }}/100
+          {{ my_squad.squad_size }} players &middot; {{ my_squad.squad_value }}
+          &middot; Power {{ my_squad.power_rating }}/100
+          &middot; Budget {{ my_squad.budget }}
         </div>
       </div>
-      <div class="squad-card-net">{{ m.net_worth }}</div>
+      <div class="my-squad-card-right">
+        <div class="squad-card-net">{{ my_squad.net_worth }}</div>
+        <span class="my-squad-cta">Open squad →</span>
+      </div>
     </div>
   </a>
-  {% endfor %}
-</div>
+</section>
+{% endif %}
+
+{# ===== ALL MANAGERS ===== #}
+{% if managers %}
+  {% if my_squad %}
+  <div class="section-label reveal">All managers</div>
+  {% endif %}
+  <div class="reveal-stagger">
+    {% for m in managers %}
+    <a href="/squad/{{ m.user_id }}" class="squad-card-link">
+      <div class="squad-card glow-card panel{% if my_squad and m.user_id == my_squad.user_id %} is-mine{% endif %}"
+           style="margin-bottom: 16px; display: flex; align-items: center; gap: 20px; text-decoration: none;">
+        <img src="{{ m.logo_url }}" class="squad-card-logo" alt="">
+        <div style="flex: 1;">
+          <div class="squad-card-name">
+            {{ m.team_name }}
+            {% if my_squad and m.user_id == my_squad.user_id %}
+            <span class="squad-you-badge">YOU</span>
+            {% endif %}
+          </div>
+          <div class="squad-card-meta">
+            {{ m.squad_size }} players &middot; {{ m.squad_value }} &middot; Power {{ m.power_rating }}/100
+          </div>
+        </div>
+        <div class="squad-card-net">{{ m.net_worth }}</div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
 {% else %}
-<div class="empty">
-  <h3>No Squads Yet</h3>
-  <p>Start an auction and buy some players.</p>
-</div>
+  {% if not my_squad %}
+  <div class="empty">
+    <h3>No Squads Yet</h3>
+    <p>Start an auction and buy some players.</p>
+  </div>
+  {% endif %}
 {% endif %}
 {% endblock %}

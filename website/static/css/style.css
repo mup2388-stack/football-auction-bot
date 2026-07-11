@@ -805,6 +805,122 @@ a.squad-card-link { text-decoration: none; }
   color: var(--gold);
 }
 
+.my-squad-section {
+  margin-bottom: var(--sp-8);
+}
+
+.my-squad-head {
+  margin-bottom: var(--sp-4);
+}
+
+.my-squad-kicker {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-dim);
+  margin-bottom: 4px;
+}
+
+.my-squad-title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+
+.my-squad-link .my-squad-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 0;
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 206, 96, 0.28);
+  background:
+    linear-gradient(135deg, rgba(255, 206, 96, 0.08), transparent 55%),
+    var(--panel);
+  box-shadow: 0 0 0 1px rgba(255, 206, 96, 0.06), 0 12px 40px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.15s, transform 0.15s, background 0.15s;
+}
+
+.my-squad-link:hover .my-squad-card {
+  border-color: rgba(255, 206, 96, 0.5);
+  transform: translateY(-1px);
+  background:
+    linear-gradient(135deg, rgba(255, 206, 96, 0.12), transparent 55%),
+    var(--panel-hi);
+}
+
+.my-squad-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.my-squad-card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.my-squad-cta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.section-label {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin: 8px 0 14px;
+}
+
+.squad-you-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  vertical-align: middle;
+  color: #1a1408;
+  background: var(--gold);
+  border-radius: 999px;
+}
+
+.squad-card.is-mine {
+  border: 1px solid rgba(255, 206, 96, 0.18);
+}
+
+@media (max-width: 640px) {
+  .my-squad-link .my-squad-card {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .my-squad-card-right {
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .my-squad-title {
+    font-size: 22px;
+  }
+}
+
+
 /* ===========================================================================
    SQUAD DETAIL PAGE
    =========================================================================== */

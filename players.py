@@ -104,22 +104,67 @@ def get(key: str):
 
 
 def search(query: str, limit: int = 25):
-    """Accent/case-insensitive partial-name search. Returns best matches."""
+    """Accent/case-insensitive partial-name search. Returns best matches.
+
+    Sort by OVR *before* applying the limit so a low-rated exact slug
+    (e.g. GK 'Ronaldo') doesn't beat a higher-rated related card
+    (e.g. ICON 'icon-ronaldo' / R9) when limit=1.
+    """
     q = slug(query)
     if not q:
         return sorted(all_players(), key=lambda p: p["ovr"], reverse=True)[:limit]
+
+    # Aliases people type that aren't in the player name string itself
+    ALIASES = {
+        "r9": "icon-ronaldo",
+        "fenomeno": "icon-ronaldo",
+        "il-fenomeno": "icon-ronaldo",
+        "ronaldo-nazario": "icon-ronaldo",
+        "nazario": "icon-ronaldo",
+    }
+    if q in ALIASES:
+        target = ALIASES[q]
+        for p in all_players():
+            if p["key"] == target:
+                return [p]
+
     exact, starts, contains = [], [], []
     for p in all_players():
         k = p["key"]
         if k == q:
             exact.append(p)
-        elif k.startswith(q):
+        elif k.startswith(q) or k.startswith("icon-" + q) or k == "icon-" + q:
             starts.append(p)
         elif q in k:
             contains.append(p)
-    results = (exact + starts + contains)[:limit]
-    results.sort(key=lambda p: p["ovr"], reverse=True)
-    return results
+
+    # Rank:
+    #   0 = exact key match that is an ICON (or only match)
+    #   1 = icon-* sibling of the query (icon-ronaldo for "ronaldo")
+    #   2 = other exact key match (active player with same slug)
+    #   3 = starts-with
+    #   4 = contains
+    # then higher OVR wins inside a tier.
+    def rank(p):
+        k = p["key"]
+        is_ic = p.get("club") == "ICON" or k.startswith("icon-")
+        if k == "icon-" + q:
+            tier = 0
+        elif k == q and is_ic:
+            tier = 0
+        elif k == q:
+            tier = 2
+        elif k.startswith("icon-" + q) or (is_ic and q in k):
+            tier = 1
+        elif k.startswith(q):
+            tier = 3
+        else:
+            tier = 4
+        return (tier, -int(p.get("ovr") or 0))
+
+    results = exact + starts + contains
+    results.sort(key=rank)
+    return results[:limit]
 
 
 # --------------------------------------------------------------------------

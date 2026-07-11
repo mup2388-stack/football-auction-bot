@@ -1174,3 +1174,146 @@ def head_to_head(guild_id, user_a, user_b, season_id=None):
         else:
             draws += 1
     return {"fixtures": fixtures, "a_wins": a_wins, "b_wins": b_wins, "draws": draws}
+
+
+# --------------------------------------------------------------------------
+# Manager replace (same team, new Discord user)
+# --------------------------------------------------------------------------
+
+def replace_manager(guild_id: int, old_user_id: int, new_user_id: int) -> dict:
+    """
+    Transfer everything from old_user_id → new_user_id in this guild.
+
+    Same team name, logo, balance, squad, formation, lineup, tactics,
+    watchlist, card assignment, season slot, fixtures, trades, auction history.
+
+    new_user_id must not already have a squad / season seat in this guild
+    (or we refuse to avoid merging two managers).
+    """
+    old_user_id = int(old_user_id)
+    new_user_id = int(new_user_id)
+    if old_user_id == new_user_id:
+        raise RuntimeError("Old and new user are the same person.")
+
+    # Refuse if new already owns players or is a drawn season manager
+    if squad_count(guild_id, new_user_id) > 0:
+        raise RuntimeError(
+            "New user already has a squad in this server. Reset them first "
+            "(`/reset @new`) or pick someone with no team."
+        )
+
+    # Season seat check (if league tables exist)
+    try:
+        import league as L
+        s = L.active_season(guild_id)
+        if s:
+            tms = L.teams(s["id"])
+            if any(int(t["user_id"]) == new_user_id for t in tms):
+                raise RuntimeError(
+                    "New user is already registered in the active season."
+                )
+    except RuntimeError:
+        raise
+    except Exception:
+        s = None
+
+    # Old must exist as a manager (has a users row or squad)
+    with db.cursor() as c:
+        old_row = c.execute(
+            "SELECT * FROM users WHERE guild_id=? AND user_id=?",
+            (guild_id, old_user_id),
+        ).fetchone()
+    if old_row is None and squad_count(guild_id, old_user_id) == 0:
+        raise RuntimeError("Old user has no account/squad in this server.")
+
+    team_name = get_team_name(guild_id, old_user_id)
+    bal = get_balance(guild_id, old_user_id) if old_row is not None else Config.STARTING_BALANCE
+    n_players = squad_count(guild_id, old_user_id)
+
+    with db.cursor() as c:
+        # If new already has a bare users row, drop it so we can re-key old → new
+        c.execute(
+            "DELETE FROM users WHERE guild_id=? AND user_id=?",
+            (guild_id, new_user_id),
+        )
+
+        def _move(table: str, col: str = "user_id"):
+            c.execute(
+                f"UPDATE {table} SET {col}=? WHERE guild_id=? AND {col}=?",
+                (new_user_id, guild_id, old_user_id),
+            )
+
+        # Core economy
+        _move("users")
+        _move("squads")
+        _move("formations")
+        _move("lineup_overrides")
+        _move("tactics")
+        _move("watchlist")
+
+        # Auction history (buyer)
+        c.execute(
+            "UPDATE auction_history SET winner_id=? "
+            "WHERE guild_id=? AND winner_id=?",
+            (new_user_id, guild_id, old_user_id),
+        )
+
+        # Trades
+        c.execute(
+            "UPDATE trades SET from_user=? WHERE guild_id=? AND from_user=?",
+            (new_user_id, guild_id, old_user_id),
+        )
+        c.execute(
+            "UPDATE trades SET to_user=? WHERE guild_id=? AND to_user=?",
+            (new_user_id, guild_id, old_user_id),
+        )
+
+        # Management / finance card assignments (all days for this guild)
+        try:
+            c.execute(
+                "UPDATE card_assignments SET user_id=? "
+                "WHERE guild_id=? AND user_id=?",
+                (new_user_id, guild_id, old_user_id),
+            )
+        except Exception:
+            pass  # table may not exist yet
+
+        # League tables — every season for this guild
+        try:
+            c.execute(
+                "UPDATE season_teams SET user_id=? WHERE user_id=? AND season_id IN "
+                "(SELECT id FROM seasons WHERE guild_id=?)",
+                (new_user_id, old_user_id, guild_id),
+            )
+            c.execute(
+                "UPDATE fixtures SET home_user=? WHERE home_user=? AND season_id IN "
+                "(SELECT id FROM seasons WHERE guild_id=?)",
+                (new_user_id, old_user_id, guild_id),
+            )
+            c.execute(
+                "UPDATE fixtures SET away_user=? WHERE away_user=? AND season_id IN "
+                "(SELECT id FROM seasons WHERE guild_id=?)",
+                (new_user_id, old_user_id, guild_id),
+            )
+        except Exception as ex:
+            print(f"[!] replace_manager season/fixture update: {ex}")
+
+    # In-memory card bans / peek state (this process only)
+    try:
+        import cards as Cards
+        bans = Cards._temp_bid_bans.get(guild_id, {})
+        if old_user_id in bans:
+            bans[new_user_id] = bans.pop(old_user_id)
+        pending = Cards._pending_after_player_ban.get(guild_id, {})
+        if old_user_id in pending:
+            pending[new_user_id] = pending.pop(old_user_id)
+    except Exception:
+        pass
+
+    return {
+        "old_user_id": old_user_id,
+        "new_user_id": new_user_id,
+        "team_name": team_name,
+        "balance": bal,
+        "squad_size": n_players,
+    }

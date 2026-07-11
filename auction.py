@@ -24,6 +24,7 @@ import players as P
 import auction_card as AC
 import emojis as EM
 from embed_colors import C
+import cards as Cards
 
 
 ACTIVE: dict = {}
@@ -159,13 +160,29 @@ class Auction:
         if not E.can_afford(self.guild_id, member.id, amount):
             bal = E.get_balance(self.guild_id, member.id)
             return False, f"Can't afford that. Balance: **£{bal:,}**."
+
+        # Season + management card + restriction rules
+        ok, err = Cards.can_bid(self.guild_id, member.id, self.player, amount)
+        if not ok:
+            return False, err
         return True, ""
 
     async def handle_bid(self, interaction, amount):
+        # Track whether they already had a management card (for late-join notice)
+        had_card = False
+        day = Cards.get_open_day(self.guild_id, "management")
+        if day:
+            had_card = Cards.get_assignment(day["id"], interaction.user.id) is not None
+
         ok, err = self._validate_bid(interaction.user, amount)
         if not ok:
             await interaction.response.send_message(err, ephemeral=True)
             return
+
+        # After can_bid, late arrivals may have been auto-assigned
+        late_assign = None
+        if day and not had_card:
+            late_assign = Cards.get_assignment(day["id"], interaction.user.id)
 
         was_leading = self.highest_bidder
         prev_bid = self.current_bid
@@ -187,9 +204,10 @@ class Auction:
         self.view.refresh_buttons()
 
         # 1) Ephemeral confirmation to bidder
-        await interaction.response.send_message(
-            f"Bid placed: **£{amount:,}** on {self.player['name']}", ephemeral=True
-        )
+        conf = f"Bid placed: **£{amount:,}** on {self.player['name']}"
+        if late_assign:
+            conf += f"\n\n**Management card assigned:** {late_assign['card_text']}"
+        await interaction.response.send_message(conf, ephemeral=True)
 
         # 2) Public bid announcement message
         p = self.player
@@ -198,10 +216,25 @@ class Auction:
             msg += "\n**ANTI-SNIPE!** Timer extended!"
         if was_leading and was_leading.id != interaction.user.id:
             msg += f"\n_(overtakes {was_leading.mention} who bid £{prev_bid:,})_"
+        if late_assign:
+            msg += (
+                f"\n{EM.e('clipboard') or '📋'} **Late join** — "
+                f"{interaction.user.mention} just got a management card."
+            )
         try:
             await self.channel.send(msg)
         except discord.HTTPException:
             pass
+
+        # DM late card privately
+        if late_assign:
+            try:
+                await interaction.user.send(
+                    f"**Management card (auto-assigned on bid)**\n"
+                    f"{late_assign['card_text']}"
+                )
+            except Exception:
+                pass
 
         # 3) EDIT the auction card message (update image in place)
         await self._edit_card()
@@ -272,6 +305,13 @@ class Auction:
                 await self.channel.send(embed=e)
             except discord.HTTPException:
                 pass
+
+            try:
+                Cards.on_auction_finished(
+                    self.guild_id, player_key=self.player.get("key")
+                )
+            except Exception as ex:
+                print(f"[!] cards.on_auction_finished failed: {ex}")
 
             ACTIVE.pop(self.guild_id, None)
 
@@ -372,11 +412,18 @@ class Auction:
         winner = self.highest_bidder
         price = self.current_bid
 
+        task_done = None
         if winner:
             self.status = "SOLD"
             E.adjust_balance(self.guild_id, winner.id, -price)
             E.add_player(self.guild_id, winner.id, self.player, price)
             E.log_auction(self.guild_id, self.player, winner.id, price, status="sold")
+            try:
+                task_done = Cards.on_player_bought(
+                    self.guild_id, winner.id, self.player, price
+                )
+            except Exception as ex:
+                print(f"[!] cards.on_player_bought failed: {ex}")
         else:
             self.status = "VOID"
             E.log_unsold(self.guild_id, self.player)
@@ -455,5 +502,24 @@ class Auction:
             await self.channel.send(embed=e)
         except discord.HTTPException:
             pass
+
+        # Management task completion ping (same channel as sold)
+        if task_done and winner:
+            try:
+                await self.channel.send(
+                    f"{EM.e('check')} {winner.mention} completed their task: "
+                    f"**{task_done['card_text']}**"
+                )
+            except discord.HTTPException:
+                pass
+
+        # Advance auction round counter (for ban_first_n / temp bans)
+        # Pass player_key so delayed peek bans activate AFTER this auction
+        try:
+            Cards.on_auction_finished(
+                self.guild_id, player_key=self.player.get("key")
+            )
+        except Exception as ex:
+            print(f"[!] cards.on_auction_finished failed: {ex}")
 
         ACTIVE.pop(self.guild_id, None)

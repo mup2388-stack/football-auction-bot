@@ -31,6 +31,8 @@ import compare_card as CC
 import league as L
 import emojis as EM
 from embed_colors import C
+import cards as Cards
+import cards_commands
 
 
 # --------------------------------------------------------------------------
@@ -39,11 +41,15 @@ from embed_colors import C
 intents = discord.Intents.default()
 intents.members = True
 bot = commands.Bot(command_prefix=Config.PREFIX, intents=intents)
-
+cards_commands.setup(bot)
 
 @bot.event
 async def on_ready():
     db.init_db()
+    try:
+        Cards.ensure_schema()
+    except Exception as e:
+        print(f"[!] cards schema: {e}")
     L.init()
     # Start the website dashboard (background thread, same process)
     if Config.WEB_ENABLED:
@@ -213,6 +219,8 @@ async def profile(interaction: discord.Interaction, user: discord.Member = None)
     e.add_field(name="Top Players", value=stars, inline=False)
     e.add_field(name="Squad Size", value=f"{len(squad)} player(s)", inline=True)
     e.set_thumbnail(url=target.display_avatar.url)
+    for line in Cards.profile_lines(interaction.guild_id, target.id):
+        e.add_field(name="\u200b", value=line, inline=False)
     await interaction.followup.send(embed=e)
 
 
@@ -1921,6 +1929,56 @@ async def season_teams(interaction: discord.Interaction):
         description="\n".join(lines),
         color=C.OBSIDIAN)
     e.set_footer(text=f"Format: {s['format']} . Status: {s['status']}")
+    await interaction.followup.send(embed=e)
+
+
+@bot.tree.command(
+    name="replace",
+    description="[Admin] Transfer a manager's whole team to another Discord user.",
+)
+@app_commands.describe(
+    old="Manager leaving (current Discord account)",
+    new="Manager taking over (same team, squad, budget, cards, season seat)",
+)
+async def replace_manager_cmd(
+    interaction: discord.Interaction,
+    old: discord.Member,
+    new: discord.Member,
+):
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message(
+            f"{EM.e('x')} Admins only.", ephemeral=True
+        )
+        return
+    if old.id == new.id:
+        await interaction.response.send_message(
+            f"{EM.e('x')} Pick two different people.", ephemeral=True
+        )
+        return
+
+    await interaction.response.defer()
+    try:
+        res = E.replace_manager(interaction.guild_id, old.id, new.id)
+    except Exception as ex:
+        await interaction.followup.send(f"{EM.e('x')} {ex}", ephemeral=True)
+        return
+
+    team = res.get("team_name") or "Unknown"
+    team_tag = EM.club_tag(team)
+    e = discord.Embed(
+        title=f"{EM.e('check')} Manager replaced",
+        description=(
+            f"**{team_tag}** transferred.\n\n"
+            f"**From:** {old.mention}\n"
+            f"**To:** {new.mention}\n\n"
+            f"Budget: **{E.money(res['balance'])}**\n"
+            f"Squad: **{res['squad_size']}** players\n\n"
+            f"Same team name, logo, formation, lineup, tactics, "
+            f"season seat, fixtures, trades, auction history, and cards."
+        ),
+        color=C.EMERALD,
+    )
+    e.set_footer(text="Old account no longer owns this team in this server.")
     await interaction.followup.send(embed=e)
 
 

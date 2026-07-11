@@ -360,13 +360,14 @@ def standings():
 
 @app.route("/squads")
 def squads():
-    """List all managers who have players."""
+    """List all managers who have players. Logged-in managers get a My Squad pin."""
     gid = _guild_id()
     with db.cursor() as c:
         rows = c.execute(
             "SELECT DISTINCT user_id FROM squads WHERE guild_id=?",
             (gid,),
         ).fetchall()
+
     managers = []
     for r in rows:
         uid = r["user_id"]
@@ -384,10 +385,33 @@ def squads():
             "budget": _money(bal),
             "net_worth": _money(sv + bal),
             "power_rating": pr,
+            "_net_raw": sv + bal,
         })
-    # sort by net worth (strip non-digits for comparison)
-    managers.sort(key=lambda m: int("".join(d for d in m["net_worth"] if d.isdigit()) or 0), reverse=True)
-    return render_template("squads.html", active_page="squads", managers=managers)
+
+    managers.sort(key=lambda m: m["_net_raw"], reverse=True)
+    for m in managers:
+        m.pop("_net_raw", None)
+
+    # My Squad: only if Discord-logged-in AND they own players in this guild
+    my_squad = None
+    cu = _current_user()
+    if cu:
+        try:
+            my_uid = int(cu["id"])
+        except (TypeError, ValueError):
+            my_uid = None
+        if my_uid is not None:
+            for m in managers:
+                if int(m["user_id"]) == my_uid:
+                    my_squad = m
+                    break
+
+    return render_template(
+        "squads.html",
+        active_page="squads",
+        managers=managers,
+        my_squad=my_squad,
+    )
 
 
 @app.route("/players")
