@@ -1,7 +1,9 @@
 """
 Central configuration for the Football Auction management bot.
+
 All tunable game-balance values live here.
 """
+
 import os
 from dotenv import load_dotenv
 
@@ -25,9 +27,9 @@ class Config:
 
     # --- Economy (auction management — no daily bonuses) ---
     # Sized so a manager can build a ~15 player squad from the pool.
-    # Rule of thumb:  managers × balance  ≈  total value of all players you
-    # expect to sell. With ~270 players averaging ~£8M that's ~£2.1B of value.
-    STARTING_BALANCE: int = 800_000_000          # £800M per manager
+    # With ~270 players and a 15M–140M market curve, £1B per manager
+    # leaves room for stars without making filler free.
+    STARTING_BALANCE: int = 1_000_000_000         # £1B per manager
 
     # --- Auction engine ---
     AUCTION_DURATION: int = 60                   # seconds an auction runs
@@ -36,7 +38,9 @@ class Config:
     MIN_BID_INCREMENT_PCT: float = 0.02          # min next bid = +2% of current
     MIN_BID_INCREMENT_FLAT: int = 1_000_000       # floor on the increment (£1M)
 
-    # Opening bid (reserve) = market value * this factor.
+    # Opening bid is flat by OVR band in players.start_price (not ratio-based):
+    #   OVR < 75 → £15M, OVR ≥ 75 → £25M.
+    # START_PRICE_RATIO kept for compatibility; not used for opening bids.
     START_PRICE_RATIO: float = 0.50
 
     # --- Files ---
@@ -48,6 +52,7 @@ class Config:
     # Create a free DB at https://turso.tech (GitHub login, no card).
     TURSO_URL: str = os.getenv("TURSO_URL", "")
     TURSO_AUTH_TOKEN: str = os.getenv("TURSO_AUTH_TOKEN", "")
+
     # --- Custom server emojis (optional) ---
     # Upload the PNGs from emojis/custom/ to your Discord server
     # (Server Settings > Emoji), then paste the emoji ID here.
@@ -78,4 +83,3 @@ def is_admin(user_id: int) -> bool:
     if not Config.ADMIN_IDS:
         return True
     return user_id in Config.ADMIN_IDS
-

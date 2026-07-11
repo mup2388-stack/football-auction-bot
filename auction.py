@@ -9,19 +9,22 @@ Features:
   - Going once at 10s, going twice at 5s
   - Anti-snipe extends timer
   - Admin nomination is ephemeral
+  - Admin-only SKIP button → force NOT SOLD / UNSOLD (no waiting on the timer)
   - Custom emoji support for SOLD + bid buttons (config.py)
 """
+
 import asyncio
 from datetime import datetime, timedelta, timezone
 
 import discord
 
-from config import Config
+from config import Config, is_admin
 import economy as E
 import players as P
 import auction_card as AC
 import emojis as EM
 from embed_colors import C
+
 
 ACTIVE: dict = {}
 OFFERED: dict = {}
@@ -68,8 +71,8 @@ class AuctionView(discord.ui.View):
         a = self.auction
         nxt = a.next_min_bid()
         inc = nxt - a.current_bid
-        self.min_bid.label = f"Bid £{nxt//1000000}M"
-        self.quick_bid.label = f"+£{max(5_000_000, inc)//1000000}M"
+        self.min_bid.label = f"Bid £{nxt // 1_000_000}M"
+        self.quick_bid.label = f"+£{max(5_000_000, inc) // 1_000_000}M"
 
     @discord.ui.button(label="Bid", style=discord.ButtonStyle.primary, row=0)
     async def min_bid(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -78,7 +81,9 @@ class AuctionView(discord.ui.View):
     @discord.ui.button(label="Bid +5M", style=discord.ButtonStyle.success, row=0)
     async def quick_bid(self, interaction: discord.Interaction, button: discord.ui.Button):
         inc = self.auction.next_min_bid() - self.auction.current_bid
-        await self.auction.handle_bid(interaction, self.auction.current_bid + max(5_000_000, inc))
+        await self.auction.handle_bid(
+            interaction, self.auction.current_bid + max(5_000_000, inc)
+        )
 
     @discord.ui.button(label="Custom", style=discord.ButtonStyle.secondary, row=0)
     async def custom_bid(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -86,6 +91,31 @@ class AuctionView(discord.ui.View):
             await interaction.response.send_message("Auction ended.", ephemeral=True)
             return
         await interaction.response.send_modal(CustomBidModal(self.auction))
+
+    @discord.ui.button(label="Skip (Admin)", style=discord.ButtonStyle.danger, row=1)
+    async def skip_auction(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """
+        Admin-only: end the auction immediately as NOT SOLD / UNSOLD.
+        Player goes to the unsold list (re-auctionable via /phase UNSOLD).
+        No money is taken (bids only settle on a real sale).
+        """
+        if not is_admin(interaction.user.id):
+            await interaction.response.send_message(
+                f"{EM.e('x')} Admins only.", ephemeral=True
+            )
+            return
+        if self.auction.status != "OPEN":
+            await interaction.response.send_message(
+                "This auction is already over.", ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        await self.auction.skip(skipped_by=interaction.user)
+        await interaction.followup.send(
+            f"{EM.e('check')} Skipped **{self.auction.player['name']}** → UNSOLD.",
+            ephemeral=True,
+        )
 
 
 class Auction:
@@ -112,8 +142,10 @@ class Auction:
         self._bids_since_last_card = 0
 
     def next_min_bid(self):
-        inc = max(Config.MIN_BID_INCREMENT_FLAT,
-                  round(self.current_bid * Config.MIN_BID_INCREMENT_PCT / 1_000_000) * 1_000_000)
+        inc = max(
+            Config.MIN_BID_INCREMENT_FLAT,
+            round(self.current_bid * Config.MIN_BID_INCREMENT_PCT / 1_000_000) * 1_000_000,
+        )
         return self.current_bid + inc
 
     def _validate_bid(self, member, amount):
@@ -156,7 +188,8 @@ class Auction:
 
         # 1) Ephemeral confirmation to bidder
         await interaction.response.send_message(
-            f"Bid placed: **£{amount:,}** on {self.player['name']}", ephemeral=True)
+            f"Bid placed: **£{amount:,}** on {self.player['name']}", ephemeral=True
+        )
 
         # 2) Public bid announcement message
         p = self.player
@@ -184,13 +217,72 @@ class Auction:
         ACTIVE[self.guild_id] = self
         OFFERED.setdefault(self.guild_id, set()).add(self.player["key"])
 
+    async def skip(self, skipped_by=None):
+        """
+        Admin force-end: treat as NOT SOLD / UNSOLD immediately.
+        Safe to call only while status == OPEN (caller checks).
+        """
+        async with self._lock:
+            if self.status != "OPEN":
+                return
+
+            # Mark closed first so the timer loop / further bids stop
+            self.status = "SKIPPED"
+            self.highest_bidder = None  # never sell on a skip
+
+            if self._task and not self._task.done():
+                self._task.cancel()
+                try:
+                    await self._task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+            # Same persistence path as a natural no-bid end
+            E.log_unsold(self.guild_id, self.player)
+            offered = OFFERED.get(self.guild_id, set())
+            offered.discard(self.player["key"])
+
+            try:
+                if self.message:
+                    await self.message.edit(view=None)
+            except (discord.NotFound, discord.HTTPException):
+                pass
+
+            p = self.player
+            face_url = E.get_face_url(p["key"])
+            mv = P.market_value(p["ovr"], is_icon=P.is_icon(p))
+            club_line = EM.club_tag(p.get("club", "") or "")
+
+            e = discord.Embed(
+                title=f"NOT SOLD — {p['name']}",
+                description=(
+                    f"{p.get('position', '')} · {p.get('country', '')} · {club_line}"
+                ),
+                color=C.SLATE,
+                timestamp=datetime.now(timezone.utc),
+            )
+            if face_url:
+                e.set_thumbnail(url=face_url)
+            e.add_field(name="OVR", value=str(p["ovr"]), inline=True)
+            e.add_field(name="Market Value", value=E.money(mv), inline=True)
+            if skipped_by:
+                e.set_footer(text=f"Skipped by {skipped_by.display_name}")
+
+            try:
+                await self.channel.send(embed=e)
+            except discord.HTTPException:
+                pass
+
+            ACTIVE.pop(self.guild_id, None)
+
     async def _build_card_buf(self):
         """Build the compact auction card image."""
         time_left = max(0, int((self.end_time - datetime.now(timezone.utc)).total_seconds()))
         bidder_name = self.highest_bidder.display_name if self.highest_bidder else None
         return AC.render_auction_card(
             self.player, self.current_bid, bidder_name,
-            self.next_min_bid(), time_left, self.bids, self.guild_id)
+            self.next_min_bid(), time_left, self.bids, self.guild_id,
+        )
 
     async def _send_card(self, is_initial=False):
         """Send a fresh auction card message with buttons."""
@@ -240,9 +332,15 @@ class Auction:
                 if last_edit == 0 or (last_edit - remaining) >= 8:
                     last_edit = remaining
                     await self._edit_card()
+        except asyncio.CancelledError:
+            # Admin skip (or cancel) stopped the loop — do not finalize as a sale
+            return
         except (discord.NotFound, discord.HTTPException):
             pass
-        await self.finalize()
+
+        # Only natural timer expiry reaches here while still OPEN
+        if self.status == "OPEN":
+            await self.finalize()
 
     async def _going_message(self, phase):
         """Send going once/twice + resend the card."""
@@ -253,8 +351,10 @@ class Auction:
         text = "GOING ONCE" if phase == "once" else "GOING TWICE"
 
         if bidder:
-            msg = (f"**{text}!** {p['name']} -> **{bidder.mention}** @ **{price}**\n"
-                   f"Bid above or miss out!")
+            msg = (
+                f"**{text}!** {p['name']} -> **{bidder.mention}** @ **{price}**\n"
+                f"Bid above or miss out!"
+            )
         else:
             msg = f"**{text}!** {p['name']} - no bids yet!"
 
@@ -285,7 +385,8 @@ class Auction:
             offered.discard(self.player["key"])
 
         try:
-            await self.message.edit(view=None)
+            if self.message:
+                await self.message.edit(view=None)
         except (discord.NotFound, discord.HTTPException):
             pass
 
@@ -293,25 +394,25 @@ class Auction:
         p = self.player
         sold_emoji = Config.EMOJI_SOLD + " " if Config.EMOJI_SOLD else ""
 
-        # Player face thumbnail (SoFIFA CDN URL — Discord fetches directly)
         face_url = E.get_face_url(p["key"])
+
+        club_line = EM.club_tag(p.get("club", "") or "")
 
         if winner:
             remaining = E.get_balance(self.guild_id, winner.id)
             mv = P.market_value(p["ovr"], is_icon=P.is_icon(p))
             ratio = price / mv if mv else 1
             if ratio < 0.50:
-                deal, deal_emoji = "STEAL", "🔥"
+                deal, deal_emoji = "STEAL", EM.e("fire") or "🔥"
             elif ratio < 0.80:
                 deal, deal_emoji = "Great value", EM.e("check")
             elif ratio < 1.05:
                 deal, deal_emoji = "Fair price", EM.e("check")
             elif ratio < 1.25:
-                deal, deal_emoji = "Slight overpay", "⚠️"
+                deal, deal_emoji = "Slight overpay", EM.e("warning") or "⚠️"
             else:
-                deal, deal_emoji = "OVERPAY", "💸"
+                deal, deal_emoji = "OVERPAY", EM.e("money_wings") or "💸"
 
-            # winner's team name + club emoji
             team_name = E.get_team_name(self.guild_id, winner.id) or winner.display_name
             team_tag = EM.club_tag(team_name)
 
@@ -319,7 +420,7 @@ class Auction:
                 title=f"{sold_emoji}SOLD! {p['name']}",
                 description=(
                     f"{EM.e('money')} **{E.money(price)}** → {team_tag}\n"
-                    f"{p.get('position', '')} · {p.get('country', '')} · {p.get('club', '')}"
+                    f"{p.get('position', '')} · {p.get('country', '')} · {club_line}"
                 ),
                 color=C.EMERALD,
                 timestamp=datetime.now(timezone.utc),
@@ -340,8 +441,7 @@ class Auction:
             e = discord.Embed(
                 title=f"NOT SOLD — {p['name']}",
                 description=(
-                    f"No bids were placed.\n"
-                    f"{p.get('position', '')} · {p.get('country', '')} · {p.get('club', '')}"
+                    f"{p.get('position', '')} · {p.get('country', '')} · {club_line}"
                 ),
                 color=C.SLATE,
                 timestamp=datetime.now(timezone.utc),
@@ -350,7 +450,6 @@ class Auction:
                 e.set_thumbnail(url=face_url)
             e.add_field(name="OVR", value=str(p["ovr"]), inline=True)
             e.add_field(name="Market Value", value=E.money(mv), inline=True)
-            e.set_footer(text="Use /drop to re-auction later")
 
         try:
             await self.channel.send(embed=e)

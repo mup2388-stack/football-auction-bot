@@ -13,10 +13,22 @@ Two modes, selected by environment variable:
                         website share ONE database (24/7 website, bot can sleep).
 
 The public API is identical in both modes:
+
     with db.cursor() as c:
         row = c.execute("SELECT ... WHERE id=?", (id,)).fetchone()
         value = row["column"]          # dict-style access works in BOTH modes
+
+Turso performance notes
+-----------------------
+Each `c.execute()` is one HTTPS round-trip if called alone. That is fine for
+single lookups, but **fatal** for loops (queue shuffle, bulk add, renumber).
+
+Use:
+  - `c.executemany(sql, rows)`  → batched into ONE (or few) pipeline HTTP calls
+  - `c.execute_batch([(sql, params), ...])` → many different statements, one trip
+  - multi-row `INSERT ... VALUES (...), (...), ...` for bulk inserts
 """
+
 import os
 import base64
 import threading
@@ -28,25 +40,118 @@ USE_TURSO = bool(os.getenv("TURSO_URL", "").strip())
 
 _local = threading.local()
 
+# Max statements / rows per Turso pipeline request (keeps payload reasonable)
+_TURSO_BATCH_SIZE = 80
+
+
+def _split_sql_statements(script: str) -> list:
+    """
+    Split a multi-statement SQL script on ';' WITHOUT breaking:
+      - semicolons inside 'strings' / "identifiers"
+      - semicolons inside (parentheses)  e.g. DEFAULT (datetime('now'))
+      - CREATE TRIGGER ... BEGIN ... ; ... END;
+    Naive script.split(';') is what caused Turso "unexpected end of input".
+    """
+    stmts = []
+    buf = []
+    depth = 0          # ( ... )
+    begin_depth = 0    # BEGIN ... END (triggers)
+    in_single = False
+    in_double = False
+    i = 0
+    n = len(script)
+
+    def _at_keyword(pos: int, word: str) -> bool:
+        """True if script[pos:] starts with keyword word as a whole word."""
+        w = word.upper()
+        if pos + len(w) > n:
+            return False
+        if script[pos:pos + len(w)].upper() != w:
+            return False
+        # left boundary
+        if pos > 0 and (script[pos - 1].isalnum() or script[pos - 1] == "_"):
+            return False
+        # right boundary
+        end = pos + len(w)
+        if end < n and (script[end].isalnum() or script[end] == "_"):
+            return False
+        return True
+
+    while i < n:
+        ch = script[i]
+        if in_single:
+            buf.append(ch)
+            if ch == "'" and i + 1 < n and script[i + 1] == "'":
+                buf.append(script[i + 1])
+                i += 2
+                continue
+            if ch == "'":
+                in_single = False
+            i += 1
+            continue
+        if in_double:
+            buf.append(ch)
+            if ch == '"':
+                in_double = False
+            i += 1
+            continue
+        if ch == "'":
+            in_single = True
+            buf.append(ch)
+            i += 1
+            continue
+        if ch == '"':
+            in_double = True
+            buf.append(ch)
+            i += 1
+            continue
+        if ch == "(":
+            depth += 1
+            buf.append(ch)
+            i += 1
+            continue
+        if ch == ")":
+            depth = max(0, depth - 1)
+            buf.append(ch)
+            i += 1
+            continue
+        # BEGIN / END for trigger bodies
+        if _at_keyword(i, "BEGIN"):
+            begin_depth += 1
+            buf.append(script[i:i + 5])
+            i += 5
+            continue
+        if _at_keyword(i, "END") and begin_depth > 0:
+            begin_depth -= 1
+            buf.append(script[i:i + 3])
+            i += 3
+            continue
+        if ch == ";" and depth == 0 and begin_depth == 0:
+            s = "".join(buf).strip()
+            if s:
+                stmts.append(s)
+            buf = []
+            i += 1
+            continue
+        buf.append(ch)
+        i += 1
+    s = "".join(buf).strip()
+    if s:
+        stmts.append(s)
+    return stmts
+
 
 # ============================================================================
 #  MODE 2 — CLOUD (Turso / libSQL over plain HTTPS, pure Python)
-#
-#  This replaces the Rust `libsql_experimental` driver, which has no prebuilt
-#  Windows wheel and forces a Rust/MSVC compile that fails on most machines.
-#  Instead we talk to Turso's documented HTTP API (/v2/pipeline) using the
-#  `requests` library that is already a dependency. Zero native code.
 # ============================================================================
 if USE_TURSO:
     import requests
 
-    # One shared Session across the whole process → HTTP keep-alive, so we
-    # don't pay a fresh TCP+TLS handshake on every query. Thread-safe.
+    # One shared Session across the whole process → HTTP keep-alive
     _session = requests.Session()
 
     class _Row:
-        """Behaves like sqlite3.Row: row["col"], row[0], .keys(), etc.
-        Built from the column names + a plain tuple of values."""
+        """Behaves like sqlite3.Row: row["col"], row[0], .keys(), etc."""
         __slots__ = ("_values", "_map")
 
         def __init__(self, cols, values):
@@ -91,7 +196,6 @@ if USE_TURSO:
         """Convert a Python value into the JSON arg object Turso expects."""
         if val is None:
             return {"type": "null"}
-        # bool MUST be checked before int (isinstance(True, int) is True)
         if isinstance(val, bool):
             return {"type": "integer", "value": "1" if val else "0"}
         if isinstance(val, int):
@@ -114,14 +218,13 @@ if USE_TURSO:
                 return float(cell["value"])
             if t == "blob":
                 return base64.b64decode(cell.get("base64", ""))
-            return cell.get("value")  # text
-        return cell  # already a raw value (defensive)
+            return cell.get("value")
+        return cell
 
     class _HttpConn:
         """A minimal Turso HTTP client. One per thread."""
 
         def __init__(self, url, token):
-            # libsql://  →  https://
             if url.startswith("libsql://"):
                 url = "https://" + url[len("libsql://"):]
             self._url = url.rstrip("/") + "/v2/pipeline"
@@ -132,7 +235,6 @@ if USE_TURSO:
             }
 
         def _post(self, body):
-            # One retry on transient network errors (NOT on SQL errors).
             last_err = None
             for attempt in range(2):
                 try:
@@ -152,68 +254,110 @@ if USE_TURSO:
                     last_err = e
             raise RuntimeError(f"Turso connection failed: {last_err}")
 
-        def execute(self, sql, params=()):
-            body = {
-                "baton": None,
-                "requests": [
-                    {
-                        "type": "execute",
-                        "stmt": {
-                            "sql": sql,
-                            "args": [_to_arg(p) for p in (params or ())],
-                        },
+        def _pipeline(self, statements):
+            """
+            Run many (sql, params) statements in ONE HTTP round-trip.
+
+            statements: list of (sql, params) where params is a sequence or ().
+            Returns list of (cols, rows, lastrowid, rowcount) per execute.
+            """
+            if not statements:
+                return []
+
+            reqs = []
+            for sql, params in statements:
+                reqs.append({
+                    "type": "execute",
+                    "stmt": {
+                        "sql": sql,
+                        "args": [_to_arg(p) for p in (params or ())],
                     },
-                    {"type": "close"},
-                ],
-            }
-            data = self._post(body)
-            return self._parse_result(data)
+                })
+            reqs.append({"type": "close"})
 
-        def executescript(self, script):
-            """Run a multi-statement script in ONE HTTP call by splitting on
-            ';' and sending each as a separate execute in the same pipeline."""
-            stmts = [s.strip() for s in script.split(";") if s.strip()]
-            if not stmts:
-                return
-            reqs = [
-                {"type": "execute", "stmt": {"sql": s}} for s in stmts
-            ] + [{"type": "close"}]
-            self._post({"baton": None, "requests": reqs})
-
-        @staticmethod
-        def _parse_result(data):
-            """Extract (cols, rows, lastrowid, rowcount) from a pipeline
-            response. Raises on any error result."""
+            data = self._post({"baton": None, "requests": reqs})
             results = data.get("results", [])
-            # surface errors first
+
             for r in results:
                 if r.get("type") == "error":
                     err = r.get("error", {})
                     msg = err.get("message", "unknown Turso error")
                     raise RuntimeError(f"Turso SQL error: {msg}")
+
+            out = []
             for r in results:
                 resp = r.get("response", {})
-                if resp.get("type") == "execute":
-                    result = resp.get("result", {})
-                    cols = [c.get("name", "") for c in result.get("cols", [])]
-                    rows = [
-                        [_from_cell(cell) for cell in row]
-                        for row in result.get("rows", [])
-                    ]
-                    lrid = result.get("last_insert_rowid")
-                    if isinstance(lrid, str):
-                        lrid = int(lrid) if lrid else 0
-                    rowcount = result.get("affected_row_count", -1)
-                    if isinstance(rowcount, str):
-                        rowcount = int(rowcount)
-                    return cols, rows, lrid, rowcount
-            return [], [], None, -1
+                if resp.get("type") != "execute":
+                    continue
+                result = resp.get("result", {})
+                cols = [c.get("name", "") for c in result.get("cols", [])]
+                rows = [
+                    [_from_cell(cell) for cell in row]
+                    for row in result.get("rows", [])
+                ]
+                lrid = result.get("last_insert_rowid")
+                if isinstance(lrid, str):
+                    lrid = int(lrid) if lrid else 0
+                rowcount = result.get("affected_row_count", -1)
+                if isinstance(rowcount, str):
+                    rowcount = int(rowcount)
+                out.append((cols, rows, lrid, rowcount))
+            return out
+
+        def execute(self, sql, params=()):
+            parsed = self._pipeline([(sql, params or ())])
+            if not parsed:
+                return [], [], None, -1
+            return parsed[0]
+
+        def execute_batch(self, statements):
+            """Run a list of (sql, params) in as few HTTP calls as possible."""
+            all_results = []
+            for i in range(0, len(statements), _TURSO_BATCH_SIZE):
+                chunk = statements[i:i + _TURSO_BATCH_SIZE]
+                all_results.extend(self._pipeline(chunk))
+            return all_results
+
+        def executemany(self, sql, seq_of_params):
+            """Same SQL, many param rows — ONE (or few) HTTP call(s), not N."""
+            seq = list(seq_of_params)
+            if not seq:
+                return [], [], None, 0
+            statements = [(sql, tuple(p)) for p in seq]
+            results = self.execute_batch(statements)
+            # Aggregate rowcount; lastrowid from last statement
+            total_rc = 0
+            last_lrid = None
+            last_cols, last_rows = [], []
+            for cols, rows, lrid, rc in results:
+                last_cols, last_rows = cols, rows
+                last_lrid = lrid
+                if isinstance(rc, int) and rc >= 0:
+                    total_rc += rc
+            return last_cols, last_rows, last_lrid, total_rc
+
+        def executescript(self, script):
+            """
+            Run a multi-statement DDL/DML script.
+
+            Uses parenthesis/string-aware splitting so DEFAULT (datetime('now'))
+            and similar are NOT cut mid-statement (that caused Turso parse errors
+            on L.init() / SCHEMA).
+
+            Each statement is sent as its own pipeline execute (still batched
+            into groups of _TURSO_BATCH_SIZE).
+            """
+            stmts = _split_sql_statements(script)
+            if not stmts:
+                return
+            statements = [(s, ()) for s in stmts]
+            self.execute_batch(statements)
 
         def commit(self):
-            pass  # each statement auto-commits over HTTP
+            pass  # each pipeline auto-commits over HTTP
 
         def rollback(self):
-            pass  # best-effort; HTTP statements are already committed
+            pass
 
     class _Cursor:
         """Wraps an _HttpConn so fetchone()/fetchall() return _Row objects."""
@@ -232,9 +376,24 @@ if USE_TURSO:
             return self
 
         def executemany(self, sql, seq_of_params):
-            for params in seq_of_params:
-                self._conn.execute(sql, params)
+            """BATCHED — no longer one HTTP call per row."""
+            cols, rows, lrid, rc = self._conn.executemany(sql, seq_of_params)
+            self._cols, self._rows = cols, rows
+            self._lastrowid, self._rowcount = lrid, rc
             return self
+
+        def execute_batch(self, statements):
+            """
+            Run many different statements in few HTTP trips.
+            statements: list of (sql, params)
+            Returns list of results; last result populates fetchone/fetchall.
+            """
+            results = self._conn.execute_batch(statements)
+            if results:
+                cols, rows, lrid, rc = results[-1]
+                self._cols, self._rows = cols, rows
+                self._lastrowid, self._rowcount = lrid, rc
+            return results
 
         def executescript(self, sql_script):
             self._conn.executescript(sql_script)
@@ -286,11 +445,11 @@ if USE_TURSO:
                 pass
             raise
 
-    print("[✓] Database mode: CLOUD (Turso over HTTPS, pure Python)", flush=True)
+    print("[✓] Database mode: CLOUD (Turso over HTTPS, pure Python, batched)", flush=True)
 
 
 # ============================================================================
-#  MODE 1 — LOCAL (pure sqlite3, unchanged)
+#  MODE 1 — LOCAL (pure sqlite3)
 # ============================================================================
 else:
     import sqlite3
@@ -314,6 +473,15 @@ else:
     def cursor():
         conn = _connect()
         cur = conn.cursor()
+        # Local sqlite3.Cursor has no execute_batch — add a thin shim
+        if not hasattr(cur, "execute_batch"):
+            def _execute_batch(statements, _cur=cur):
+                results = []
+                for sql, params in statements:
+                    _cur.execute(sql, params or ())
+                    results.append(None)
+                return results
+            cur.execute_batch = _execute_batch  # type: ignore[attr-defined]
         try:
             yield cur
             conn.commit()
@@ -489,3 +657,8 @@ def set_trades_enabled(guild_id: int, enabled: bool):
             "ON CONFLICT(guild_id) DO UPDATE SET trades_enabled=excluded.trades_enabled",
             (guild_id, 1 if enabled else 0),
         )
+
+
+# Backwards-compatible aliases (older code used these names)
+def trades_enabled(guild_id: int) -> bool:
+    return get_trades_enabled(guild_id)

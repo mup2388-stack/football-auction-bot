@@ -377,7 +377,7 @@ async def player(interaction: discord.Interaction, name: str):
 # ==========================================================================
 @bot.tree.command(description="View a player's match stats (goals, assists, MOTM, cards).")
 @app_commands.describe(name="Player to view stats for.")
-@app_commands.autocomplete(name=all_player_autocomplete)
+@app_commands.autocomplete(name=player_autocomplete)
 async def playerstats(interaction: discord.Interaction, name: str):
     await interaction.response.defer()
     p = P.get(name)
@@ -428,8 +428,8 @@ async def playerstats(interaction: discord.Interaction, name: str):
 @app_commands.describe(
     player1="First player (the BLUE side).",
     player2="Second player (the CORAL side).")
-@app_commands.autocomplete(player1=all_player_autocomplete)
-@app_commands.autocomplete(player2=all_player_autocomplete)
+@app_commands.autocomplete(player1=player_autocomplete)
+@app_commands.autocomplete(player2=player_autocomplete)
 async def compare(interaction: discord.Interaction, player1: str, player2: str):
     await interaction.response.defer(thinking=True)
     a = P.get(player1)
@@ -766,7 +766,7 @@ async def sold(interaction: discord.Interaction):
     name="Player to set the face for.",
     url="SoFIFA image URL, e.g. https://cdn.sofifa.net/players/266/245/26_240.png",
 )
-@app_commands.autocomplete(name=all_player_autocomplete)
+@app_commands.autocomplete(name=player_autocomplete)
 async def setface(interaction: discord.Interaction, name: str, url: str):
     await interaction.response.defer()
     if not is_admin(interaction.user.id):
@@ -800,7 +800,7 @@ async def setface(interaction: discord.Interaction, name: str, url: str):
     yellow="Yellow cards this match.",
     red="Red cards this match.",
 )
-@app_commands.autocomplete(player=all_player_autocomplete)
+@app_commands.autocomplete(player=player_autocomplete)
 async def updatestats(interaction: discord.Interaction, player: str,
                       goals: int = 0, assists: int = 0, tackles: int = 0,
                       saves: int = 0, motm: int = 0, yellow: int = 0, red: int = 0):
@@ -1367,9 +1367,10 @@ async def cancel(interaction: discord.Interaction):
     phase="Phase to load (for 'load phase').",
 )
 @app_commands.choices(action=[
-    app_commands.Choice(name="List the queue", value="list"),
+    app_commands.Choice(name="Queue breakdown (by position)", value="breakdown"),
     app_commands.Choice(name="Add a player", value="add"),
     app_commands.Choice(name="Add bulk (paste comma-separated names)", value="bulk"),
+    app_commands.Choice(name="Remove a player", value="remove"),
     app_commands.Choice(name="Shuffle the queue (randomize order)", value="shuffle"),
     app_commands.Choice(name="Clear the queue", value="clear"),
     app_commands.Choice(name="Load phase into queue", value="load_phase"),
@@ -1390,6 +1391,36 @@ async def queue(interaction: discord.Interaction,
         return
     await interaction.response.defer()
     act = action.value
+
+    if act == "breakdown":
+        keys = E.queue_list(interaction.guild_id)
+        if not keys:
+            await interaction.followup.send("Queue is empty.", ephemeral=True)
+            return
+        counts = {"GK": 0, "DEF": 0, "MID": 0, "FWD": 0}
+        sold = E.sold_player_keys(interaction.guild_id)
+        for k in keys:
+            if k in sold:
+                continue
+            p = P.get(k)
+            if p:
+                counts[p["group"]] = counts.get(p["group"], 0) + 1
+        total = sum(counts.values())
+        e = discord.Embed(
+            title="Queue Breakdown",
+            description=(
+                f"**Total in queue:** {total} players\n\n"
+                f"**GK:** {counts['GK']}  (need 64 for 32 managers)\n"
+                f"**DEF:** {counts['DEF']}  (need 160)\n"
+                f"**MID:** {counts['MID']}  (need 160)\n"
+                f"**FWD:** {counts['FWD']}  (need 96)\n\n"
+                f"Per manager (32): GK {counts['GK']//32}, "
+                f"DEF {counts['DEF']//32}, MID {counts['MID']//32}, "
+                f"FWD {counts['FWD']//32}"
+            ),
+            color=C.OBSIDIAN)
+        await interaction.followup.send(embed=e)
+        return
 
     if act == "list":
         keys = E.queue_list(interaction.guild_id)
@@ -1426,6 +1457,29 @@ async def queue(interaction: discord.Interaction,
         pos = E.queue_add(interaction.guild_id, p["key"])
         await interaction.followup.send(
             f"{EM.e('check')} Added **{P.flag(p['country'])} {p['name']}** to the queue (position #{pos}).")
+        return
+
+    if act == "remove":
+        if not name:
+            await interaction.followup.send("Specify player(s) to remove.", ephemeral=True)
+            return
+        names = [n.strip() for n in name.split(",") if n.strip()]
+        keys_to_remove = []
+        not_found = []
+        for n in names:
+            results = P.search(n, limit=1)
+            if not results:
+                not_found.append(n)
+                continue
+            keys_to_remove.append(results[0]["key"])
+        if keys_to_remove:
+            removed = E.queue_remove_many(interaction.guild_id, keys_to_remove)
+            msg = f"{EM.e('check')} Removed **{removed}** player(s) from the queue."
+        else:
+            msg = f"{EM.e('x')} No matching players found."
+        if not_found:
+            msg += f"\nCouldn't find: {', '.join(not_found[:10])}"
+        await interaction.followup.send(msg)
         return
 
     if act == "clear":
@@ -1484,22 +1538,63 @@ async def queueorder(interaction: discord.Interaction):
         await interaction.response.send_message(f"{EM.e('x')} Admins only.", ephemeral=True)
         return
     await interaction.response.defer(ephemeral=True)
+
     qpool = E.queued_pool(interaction.guild_id)
     if not qpool:
         await interaction.followup.send("Queue is empty.", ephemeral=True)
         return
-    lines = []
-    for i, p in enumerate(qpool, 1):
-        lines.append(f"`#{i:3}` {P.flag(p['country'])} **{p['name']}** - {p['position']} - **{p['ovr']}**")
-    # chunk into embeds (max ~30 per embed field)
-    per = 30
-    e = discord.Embed(title="Drop Order (Private)", color=C.OBSIDIAN)
-    for start in range(0, len(lines), per):
-        chunk = lines[start:start+per]
-        e.add_field(name=f"#{start+1}-{start+len(chunk)}", value="\n".join(chunk), inline=False)
-    e.set_footer(text=f"{len(qpool)} players in queue - only you can see this")
-    await interaction.followup.send(embed=e, ephemeral=True)
 
+    import io
+
+    # Full order as a plain-text file (never hits embed limits)
+    file_lines = []
+    for i, p in enumerate(qpool, 1):
+        file_lines.append(
+            f"#{i:3}  {p['name']:<28}  {p.get('position', ''):<4}  "
+            f"{p['ovr']:>2} OVR  {p.get('club', '')}"
+        )
+    file_text = (
+        f"Drop order — {len(qpool)} players\n"
+        f"{'=' * 60}\n"
+        + "\n".join(file_lines)
+        + "\n"
+    )
+    buf = io.BytesIO(file_text.encode("utf-8"))
+    file = discord.File(buf, filename="queue_order.txt")
+
+    # Short preview only (first 25) — one field, safely under 6000 chars
+    preview_n = min(25, len(qpool))
+    preview_lines = [
+        f"`#{i:3}` {P.flag(p['country'])} **{p['name']}** "
+        f"— {p['position']} — **{p['ovr']}**"
+        for i, p in enumerate(qpool[:preview_n], 1)
+    ]
+    preview_body = "\n".join(preview_lines)
+    if len(preview_body) > 1024:
+        preview_lines = preview_lines[:15]
+        preview_body = "\n".join(preview_lines)
+        preview_n = len(preview_lines)
+        if len(preview_body) > 1024:
+            preview_body = preview_body[:1020] + "…"
+
+    e = discord.Embed(
+        title="Drop Order (Private)",
+        description=(
+            f"**{len(qpool)}** players in queue.\n"
+            f"Full order is in **queue_order.txt** "
+            f"(preview: first **{preview_n}** below)."
+        ),
+        color=C.OBSIDIAN,
+    )
+    e.add_field(name=f"#{1}–{preview_n}", value=preview_body or "—", inline=False)
+    if len(qpool) > preview_n:
+        e.set_footer(
+            text=f"+ {len(qpool) - preview_n} more in the attached file · only you can see this"
+        )
+    else:
+        e.set_footer(text=f"{len(qpool)} players · only you can see this")
+
+    await interaction.followup.send(embed=e, file=file, ephemeral=True)
 
 # ==========================================================================
 #  CSV EXPORT
@@ -2438,7 +2533,7 @@ async def testseason(interaction: discord.Interaction,
     app_commands.Choice(name="Remove from watchlist", value="remove"),
     app_commands.Choice(name="View your watchlist", value="list"),
 ])
-@app_commands.autocomplete(player=all_player_autocomplete)
+@app_commands.autocomplete(player=player_autocomplete)
 async def watch(interaction: discord.Interaction,
                 action: app_commands.Choice[str],
                 player: str = None):

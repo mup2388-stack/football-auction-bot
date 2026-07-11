@@ -1,7 +1,13 @@
 """
 Economy & squad management for the auction bot.
-Wallets, squads, sold-player tracking, pool filtering by phase, and leaderboards.
+
+Wallets, squads, sold-player tracking, pool filtering by phase,
+and leaderboards.
+
+Queue helpers are Turso-safe: multi-row inserts + few SQL calls so
+bulk / shuffle / consume don't freeze Discord's event loop.
 """
+
 import database as db
 from config import Config
 import players as P
@@ -15,6 +21,7 @@ def money(amount: int) -> str:
 # --------------------------------------------------------------------------
 # Users / wallet
 # --------------------------------------------------------------------------
+
 def ensure_user(guild_id: int, user_id: int) -> int:
     with db.cursor() as c:
         row = c.execute(
@@ -50,6 +57,7 @@ def can_afford(guild_id: int, user_id: int, amount: int) -> bool:
 # --------------------------------------------------------------------------
 # Squads
 # --------------------------------------------------------------------------
+
 def owns(guild_id: int, user_id: int, player_key: str) -> bool:
     with db.cursor() as c:
         return c.execute(
@@ -99,6 +107,7 @@ def squad_count(guild_id: int, user_id: int) -> int:
 # --------------------------------------------------------------------------
 # Sold players & the remaining pool
 # --------------------------------------------------------------------------
+
 def sold_player_keys(guild_id: int) -> set:
     """All player keys already owned by someone in this guild (never re-auction)."""
     with db.cursor() as c:
@@ -121,7 +130,6 @@ def remaining_pool(guild_id: int, phase: str = "ALL", exclude: set = None):
     """
     exclude = exclude or set()
     sold = sold_player_keys(guild_id)
-
     if phase == "UNSOLD":
         unsold = unsold_player_keys(guild_id)
         out = []
@@ -130,7 +138,6 @@ def remaining_pool(guild_id: int, phase: str = "ALL", exclude: set = None):
                 out.append(p)
         out.sort(key=lambda p: p["ovr"], reverse=True)
         return out
-
     out = []
     for p in P.all_players():
         if p["key"] in sold or p["key"] in exclude:
@@ -159,6 +166,7 @@ def phase_counts(guild_id: int) -> dict:
 # --------------------------------------------------------------------------
 # Leaderboard
 # --------------------------------------------------------------------------
+
 def leaderboard(guild_id: int, limit: int = 10):
     entries = []
     with db.cursor() as c:
@@ -178,6 +186,7 @@ def leaderboard(guild_id: int, limit: int = 10):
 # --------------------------------------------------------------------------
 # Auction history
 # --------------------------------------------------------------------------
+
 def log_auction(guild_id: int, player: dict, winner_id, final_price: int, status: str = "sold"):
     with db.cursor() as c:
         c.execute(
@@ -211,7 +220,6 @@ def unsold_player_keys(guild_id: int) -> set:
 
 def clear_offered(guild_id: int, player_key: str):
     """Remove a player from the in-memory offered set so they can be re-auctioned."""
-    # This is called from auction.py's OFFERED dict, handled there
     pass
 
 
@@ -235,6 +243,7 @@ def recent_sales(guild_id: int, limit: int = 10):
 # --------------------------------------------------------------------------
 # Formations & lineup overrides
 # --------------------------------------------------------------------------
+
 import formations as FM
 
 
@@ -255,8 +264,6 @@ def set_formation(guild_id: int, user_id: int, formation: str):
             (guild_id, user_id, formation),
         )
 
-
-# ── Tactics (attacking/defensive/advanced instructions) ──
 
 def get_tactics(guild_id: int, user_id: int) -> dict:
     """Get a manager's full tactic settings (normalized with defaults)."""
@@ -339,7 +346,6 @@ def get_lineup(guild_id: int, user_id: int):
     squad = get_squad(guild_id, user_id)
     overrides = get_lineup_overrides(guild_id, user_id)
     slots = FM.all_slots(formation)
-
     result = [None] * len(slots)
     used_keys = set()
 
@@ -366,32 +372,27 @@ def get_lineup(guild_id: int, user_id: int):
         idx = slot["index"]
         if result[idx] is not None:
             continue
-
         assigned = None
         preferred = slot["pos"]
         alts = FM.POS_ALTERNATIVES.get(preferred, [preferred])
         group = slot["group"]
         pool = [p for p in by_group.get(group, []) if p["key"] not in used_keys]
 
-        # 1) Exact position match
         for p in pool:
             if p["position"] == preferred:
                 assigned = p
                 break
-        # 2) Alternative positions
         if not assigned:
             for p in pool:
                 if p["position"] in alts and p["position"] != preferred:
                     assigned = p
                     break
-        # 3) Same side
         if not assigned:
             slot_side = slot["side"]
             for p in pool:
                 if FM.position_side(p["position"]) == slot_side:
                     assigned = p
                     break
-        # 4) Any in group
         if not assigned and pool:
             assigned = pool[0]
 
@@ -405,8 +406,34 @@ def get_lineup(guild_id: int, user_id: int):
 
 
 # --------------------------------------------------------------------------
-# Scripted draft queue
+# Scripted draft queue  (Turso-safe / batched)
 # --------------------------------------------------------------------------
+
+# How many rows per multi-value INSERT (keeps SQL size reasonable)
+_QUEUE_INSERT_CHUNK = 80
+
+
+def _queue_insert_rows(c, guild_id: int, ordered_keys: list):
+    """
+    Insert (guild_id, position, player_key) for ordered_keys.
+    position is 1-based in order of the list.
+    Uses multi-row INSERT — ~1 HTTP call per 80 players on Turso.
+    """
+    if not ordered_keys:
+        return
+    for start in range(0, len(ordered_keys), _QUEUE_INSERT_CHUNK):
+        chunk = ordered_keys[start:start + _QUEUE_INSERT_CHUNK]
+        placeholders = ",".join(["(?,?,?)"] * len(chunk))
+        params = []
+        for i, key in enumerate(chunk):
+            params.extend([guild_id, start + i + 1, key])
+        c.execute(
+            f"INSERT INTO draft_queue (guild_id, position, player_key) "
+            f"VALUES {placeholders}",
+            tuple(params),
+        )
+
+
 def queue_list(guild_id: int):
     """Return the ordered list of queued player keys for a guild."""
     with db.cursor() as c:
@@ -418,8 +445,7 @@ def queue_list(guild_id: int):
 
 
 def queued_pool(guild_id: int):
-    """Return the list of queued players (full dicts) not yet sold.
-    This is the ONLY source of auctionable players when a queue exists."""
+    """Return the list of queued players (full dicts) not yet sold."""
     sold = sold_player_keys(guild_id)
     keys = queue_list(guild_id)
     players = []
@@ -434,34 +460,67 @@ def queued_pool(guild_id: int):
 
 def has_queue(guild_id: int) -> bool:
     """True if this guild has any players in the queue."""
-    return len(queue_list(guild_id)) > 0
+    with db.cursor() as c:
+        row = c.execute(
+            "SELECT 1 FROM draft_queue WHERE guild_id=? LIMIT 1",
+            (guild_id,),
+        ).fetchone()
+    return row is not None
 
 
 def queue_add(guild_id: int, player_key: str) -> int:
     """Append a player to the end of the queue. Returns the new position (1-based)."""
     with db.cursor() as c:
         row = c.execute(
-            "SELECT MAX(position) AS m FROM draft_queue WHERE guild_id=?", (guild_id,)
+            "SELECT MAX(position) AS m FROM draft_queue WHERE guild_id=?",
+            (guild_id,),
         ).fetchone()
         pos = (row["m"] or 0) + 1
         c.execute(
-            "INSERT OR REPLACE INTO draft_queue (guild_id, position, player_key) VALUES (?, ?, ?)",
+            "INSERT INTO draft_queue (guild_id, position, player_key) VALUES (?, ?, ?)",
             (guild_id, pos, player_key),
         )
     return pos
 
 
 def queue_add_many(guild_id: int, player_keys: list) -> int:
-    """Append many player keys. Returns count added (skips already-queued)."""
-    existing = set(queue_list(guild_id))
-    added = 0
-    for key in player_keys:
-        if key in existing:
-            continue
-        queue_add(guild_id, key)
-        existing.add(key)
-        added += 1
-    return added
+    """
+    Append many player keys. Returns count added (skips already-queued).
+    ONE select + few multi-row inserts — NOT N separate queue_add calls.
+    """
+    if not player_keys:
+        return 0
+
+    with db.cursor() as c:
+        rows = c.execute(
+            "SELECT position, player_key FROM draft_queue WHERE guild_id=? ORDER BY position",
+            (guild_id,),
+        ).fetchall()
+        existing = {r["player_key"] for r in rows}
+        next_pos = (rows[-1]["position"] if rows else 0) + 1
+
+        to_add = []
+        for key in player_keys:
+            if key in existing:
+                continue
+            to_add.append(key)
+            existing.add(key)
+
+        if not to_add:
+            return 0
+
+        for start in range(0, len(to_add), _QUEUE_INSERT_CHUNK):
+            chunk = to_add[start:start + _QUEUE_INSERT_CHUNK]
+            placeholders = ",".join(["(?,?,?)"] * len(chunk))
+            params = []
+            for i, key in enumerate(chunk):
+                params.extend([guild_id, next_pos + start + i, key])
+            c.execute(
+                f"INSERT INTO draft_queue (guild_id, position, player_key) "
+                f"VALUES {placeholders}",
+                tuple(params),
+            )
+        return len(to_add)
 
 
 def queue_clear(guild_id: int):
@@ -471,41 +530,93 @@ def queue_clear(guild_id: int):
 
 def queue_next(guild_id: int):
     """Return (player_key, remaining_count) of the front of the queue, or (None, 0)."""
-    q = queue_list(guild_id)
-    if not q:
+    with db.cursor() as c:
+        rows = c.execute(
+            "SELECT player_key FROM draft_queue WHERE guild_id=? ORDER BY position",
+            (guild_id,),
+        ).fetchall()
+    if not rows:
         return None, 0
-    return q[0], len(q)
+    return rows[0]["player_key"], len(rows)
 
 
 def queue_consume(guild_id: int, player_key: str):
-    """Remove the first occurrence of a player from the queue, then re-number."""
+    """
+    Remove ALL occurrences of a player from the queue, then re-number.
+    Uses a few SQL statements + multi-row insert — NOT N single inserts.
+    """
     with db.cursor() as c:
-        remaining = [r["player_key"] for r in c.execute(
+        c.execute(
+            "DELETE FROM draft_queue WHERE guild_id=? AND player_key=?",
+            (guild_id, player_key),
+        )
+        remaining = c.execute(
             "SELECT player_key FROM draft_queue WHERE guild_id=? ORDER BY position",
-            (guild_id,)).fetchall()]
-        for i, key in enumerate(remaining):
-            if key == player_key:
-                del remaining[i]
-                break
+            (guild_id,),
+        ).fetchall()
+        keys = [r["player_key"] for r in remaining]
         c.execute("DELETE FROM draft_queue WHERE guild_id=?", (guild_id,))
-        for i, key in enumerate(remaining, 1):
-            c.execute(
-                "INSERT INTO draft_queue (guild_id, position, player_key) VALUES (?, ?, ?)",
-                (guild_id, i, key),
-            )
+        _queue_insert_rows(c, guild_id, keys)
+
+
+def queue_remove_many(guild_id: int, player_keys: list):
+    """Remove multiple players from the queue at once, then renumber."""
+    if not player_keys:
+        return 0
+
+    remove_set = set(player_keys)
+    with db.cursor() as c:
+        remaining_rows = c.execute(
+            "SELECT player_key FROM draft_queue WHERE guild_id=? ORDER BY position",
+            (guild_id,),
+        ).fetchall()
+        before = len(remaining_rows)
+        keys = [r["player_key"] for r in remaining_rows if r["player_key"] not in remove_set]
+        removed = before - len(keys)
+
+        if removed == 0:
+            return 0
+
+        c.execute("DELETE FROM draft_queue WHERE guild_id=?", (guild_id,))
+        _queue_insert_rows(c, guild_id, keys)
+        return removed
+
+
+def queue_shuffle(guild_id: int):
+    """
+    Randomize the order of the draft queue.
+    1 SELECT + 1 DELETE + few multi-row INSERTs. Not N HTTP inserts.
+    """
+    import random
+
+    with db.cursor() as c:
+        rows = c.execute(
+            "SELECT player_key FROM draft_queue WHERE guild_id=? ORDER BY position",
+            (guild_id,),
+        ).fetchall()
+        keys = [r["player_key"] for r in rows]
+        if len(keys) < 2:
+            return 0
+        random.shuffle(keys)
+        c.execute("DELETE FROM draft_queue WHERE guild_id=?", (guild_id,))
+        _queue_insert_rows(c, guild_id, keys)
+        return len(keys)
 
 
 # --------------------------------------------------------------------------
 # Player faces (SoFIFA URLs)
 # --------------------------------------------------------------------------
+
 _FACE_URL_MAP = None
+
 
 def _load_face_map():
     """Load pre-built face URL mapping (83% coverage from SoFiFA CSV)."""
     global _FACE_URL_MAP
     _FACE_URL_MAP = {}
     try:
-        import os, json as _json
+        import os
+        import json as _json
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                             "data", "face_urls.json")
         if os.path.exists(path):
@@ -531,8 +642,6 @@ def get_face_url(player_key: str):
     return _FACE_URL_MAP.get(player_key)
 
 
-
-
 def set_face_url(player_key: str, url: str):
     with db.cursor() as c:
         c.execute(
@@ -545,6 +654,7 @@ def set_face_url(player_key: str, url: str):
 # --------------------------------------------------------------------------
 # Team name & logo
 # --------------------------------------------------------------------------
+
 def get_team_name(guild_id: int, user_id: int):
     ensure_user(guild_id, user_id)
     with db.cursor() as c:
@@ -560,7 +670,7 @@ def set_team_name(guild_id: int, user_id: int, name: str):
     with db.cursor() as c:
         c.execute(
             "UPDATE users SET team_name=? WHERE guild_id=? AND user_id=?",
-            (name[:50], guild_id, user_id),  # cap at 50 chars
+            (name[:50], guild_id, user_id),
         )
 
 
@@ -600,47 +710,32 @@ def get_player_owner(guild_id: int, player_key: str):
 # Budget tracking / needs analysis
 # --------------------------------------------------------------------------
 
-# Minimum squad requirements
 REQUIREMENTS = {"GK": 2, "DEF": 5, "MID": 5, "FWD": 3}
 MIN_SQUAD_SIZE = sum(REQUIREMENTS.values())  # 15
 
-# Cheapest player value (for calculating minimum fill cost)
-CHEAPEST_PLAYER_VALUE = 250_000  # £250k
+# Matches OVR < 75 floor in players.base_price
+CHEAPEST_PLAYER_VALUE = 15_000_000  # £15M
 
 
 def get_needs(guild_id: int, user_id: int):
     """
     Analyze what a manager still needs.
-    Returns dict with:
-      - counts: {GK: have, DEF: have, ...}
-      - needed: {GK: remaining_needed, ...}
-      - budget: current balance
-      - min_cost: minimum cost to fill remaining slots
-      - max_bid: max they can spend on next player
-      - complete: bool
+    Returns dict with counts, needed, budget, min_cost, max_bid, complete, squad_size.
     """
     squad = get_squad(guild_id, user_id)
     budget = get_balance(guild_id, user_id)
-
     counts = {"GK": 0, "DEF": 0, "MID": 0, "FWD": 0}
     for p in squad:
         counts[p["group"]] += 1
-
     needed = {}
     total_needed = 0
     for g, req in REQUIREMENTS.items():
         remaining = max(0, req - counts[g])
         needed[g] = remaining
         total_needed += remaining
-
-    # Min cost = cheapest player value × remaining slots needed
     min_cost = total_needed * CHEAPEST_PLAYER_VALUE
-
-    # Max bid = budget - min_cost (what they can spend on the NEXT player)
     max_bid = budget - min_cost
-
     complete = total_needed == 0
-
     return {
         "counts": counts,
         "needed": needed,
@@ -702,16 +797,12 @@ def execute_trade(guild_id: int, trade_id: int):
     trade = get_trade(guild_id, trade_id)
     if not trade or trade["status"] != "pending":
         return False
-
     from_user = trade["from_user"]
     to_user = trade["to_user"]
     offering = [k for k in trade["offering"].split(",") if k]
     requesting = [k for k in trade["requesting"].split(",") if k]
-
     with db.cursor() as c:
-        # Move offered players from → to
         for key in offering:
-            # Get the acquired price first
             row = c.execute(
                 "SELECT acquired_price FROM squads WHERE guild_id=? AND user_id=? AND player_key=?",
                 (guild_id, from_user, key),
@@ -726,8 +817,6 @@ def execute_trade(guild_id: int, trade_id: int):
                 "VALUES (?, ?, ?, ?, ?)",
                 (guild_id, to_user, key, "", price),
             )
-
-        # Move requested players to → from
         for key in requesting:
             row = c.execute(
                 "SELECT acquired_price FROM squads WHERE guild_id=? AND user_id=? AND player_key=?",
@@ -743,7 +832,6 @@ def execute_trade(guild_id: int, trade_id: int):
                 "VALUES (?, ?, ?, ?, ?)",
                 (guild_id, from_user, key, "", price),
             )
-
         c.execute(
             "UPDATE trades SET status='accepted', resolved_at=datetime('now') "
             "WHERE guild_id=? AND id=?",
@@ -755,6 +843,7 @@ def execute_trade(guild_id: int, trade_id: int):
 # --------------------------------------------------------------------------
 # CSV export (for Football Life / external tools)
 # --------------------------------------------------------------------------
+
 def export_csv(guild_id: int) -> str:
     """Build a CSV of every manager's squad. Returns the CSV text."""
     import csv as _csv
@@ -773,33 +862,22 @@ def export_csv(guild_id: int) -> str:
         p = P.get(r["player_key"])
         if not p:
             continue
-        w.writerow([r["user_id"], p["name"], p["position"], p["group"], p.get("club",""),
+        w.writerow([r["user_id"], p["name"], p["position"], p["group"], p.get("club", ""),
                     p["country"], p["ovr"], r["acquired_price"], p["value"]])
     return buf.getvalue()
 
 
 def export_fl26_guide(guild_id: int) -> str:
-    """
-    Generate a comprehensive FL26 setup guide.
-    FL26 uses PES 2021's database — teams are created in Edit Mode
-    and player assignments are done manually or via ejogc PES Editor.
-
-    This generates a guide the admin can follow step by step.
-    """
+    """Generate a comprehensive FL26 setup guide."""
     import csv as _csv
     import io
-
-    # Get all managers with squads
     with db.cursor() as c:
         user_rows = c.execute(
             "SELECT DISTINCT user_id FROM squads WHERE guild_id=? ORDER BY user_id",
             (guild_id,),
         ).fetchall()
-
     buf = io.StringIO()
     w = _csv.writer(buf)
-
-    # Header
     w.writerow(["=== FOOTBALL LIFE 26 SETUP GUIDE ==="])
     w.writerow(["Generated by Football Auction Bot"])
     w.writerow([])
@@ -809,7 +887,6 @@ def export_fl26_guide(guild_id: int) -> str:
     w.writerow(["Set each team name, kit colors, stadium, etc."])
     w.writerow([])
     w.writerow(["Team Slot", "Discord User ID", "Team Name", "Formation"])
-
     managers_data = []
     for i, ur in enumerate(user_rows):
         uid = ur["user_id"]
@@ -817,10 +894,8 @@ def export_fl26_guide(guild_id: int) -> str:
         formation_name = get_formation(guild_id, uid)
         squad = get_squad(guild_id, uid)
         managers_data.append((uid, team_name, formation_name, squad))
-        # FL26 has limited custom team slots (3)
         slot = i + 1
         w.writerow([f"Slot {slot}", uid, team_name, formation_name])
-
     w.writerow([])
     w.writerow(["STEP 2: Assign Players to Teams"])
     w.writerow(["In FL26: Edit Mode > Transfers > move players to your custom teams"])
@@ -828,7 +903,6 @@ def export_fl26_guide(guild_id: int) -> str:
     w.writerow([])
     w.writerow(["PES_ID", "Player Name", "Position", "OVR", "From_Club",
                 "Assign_To_Team", "Team_Slot", "Team_Name"])
-
     for slot_idx, (uid, team_name, formation_name, squad) in enumerate(managers_data):
         slot = slot_idx + 1
         for p in squad:
@@ -837,22 +911,18 @@ def export_fl26_guide(guild_id: int) -> str:
                 pes_id, p["name"], p["position"], p["ovr"],
                 p.get("club", ""), "Custom", f"Slot {slot}", team_name
             ])
-
     w.writerow([])
     w.writerow(["STEP 3: Set Formations"])
     w.writerow(["In FL26: Select each custom team > Tactics > set formation"])
     w.writerow([])
     w.writerow(["Team_Slot", "Team_Name", "Formation"])
-
     for slot_idx, (uid, team_name, formation_name, squad) in enumerate(managers_data):
         slot = slot_idx + 1
         w.writerow([f"Slot {slot}", team_name, formation_name])
-
     w.writerow([])
     w.writerow(["STEP 4: Set Starting Lineups"])
     w.writerow(["Use the formation slot assignments below"])
     w.writerow([])
-
     for slot_idx, (uid, team_name, formation_name, squad) in enumerate(managers_data):
         slot = slot_idx + 1
         lineup, fmt = get_lineup(guild_id, uid)
@@ -865,14 +935,14 @@ def export_fl26_guide(guild_id: int) -> str:
                     player.get("pes_id", ""), player["name"], player["ovr"]
                 ])
         w.writerow([])
-
     w.writerow(["=== END OF GUIDE ==="])
     return buf.getvalue()
 
 
-# ──────────────────────────────────────────────────────────────────────────
-#  PLAYER MATCH STATS
-# ──────────────────────────────────────────────────────────────────────────
+# --------------------------------------------------------------------------
+# PLAYER MATCH STATS
+# --------------------------------------------------------------------------
+
 def get_player_stats(guild_id: int, player_key: str, season_id: int = None) -> dict:
     """Get match stats for a player (optionally filtered to a season)."""
     with db.cursor() as c:
@@ -925,7 +995,7 @@ def get_squad_match_stats(guild_id: int, user_id: int, season_id: int = None) ->
     agg = {"matches": 0, "goals": 0, "assists": 0, "tackles": 0,
            "saves": 0, "motm": 0, "yellow_cards": 0, "red_cards": 0}
     for p in squad:
-        stats = get_player_stats(guild_id, p["key"])
+        stats = get_player_stats(guild_id, p["key"], season_id=season_id)
         for k in agg:
             agg[k] += stats.get(k, 0)
     return agg
@@ -943,7 +1013,7 @@ def reset_all_stats(guild_id: int, season_id: int = None):
             c.execute("DELETE FROM player_match_stats WHERE guild_id=?", (guild_id,))
 
 
-def get_top_scorers(guild_id: int, limit: int = 10, season_id: int = None) -> list[dict]:
+def get_top_scorers(guild_id: int, limit: int = 10, season_id: int = None) -> list:
     """Top scorers for the league (filtered to a season if given)."""
     with db.cursor() as c:
         if season_id is not None:
@@ -965,34 +1035,10 @@ def get_top_scorers(guild_id: int, limit: int = 10, season_id: int = None) -> li
     return [dict(r) for r in rows]
 
 
-# ──────────────────────────────────────────────────────────────────────────
-#  QUEUE SHUFFLE
-# ──────────────────────────────────────────────────────────────────────────
-def queue_shuffle(guild_id: int):
-    """Randomize the order of the draft queue."""
-    import random
-    with db.cursor() as c:
-        rows = c.execute(
-            "SELECT player_key FROM draft_queue WHERE guild_id=? ORDER BY position",
-            (guild_id,),
-        ).fetchall()
-        keys = [r["player_key"] for r in rows]
-        if len(keys) < 2:
-            return 0
-        random.shuffle(keys)
-        c.execute("DELETE FROM draft_queue WHERE guild_id=?", (guild_id,))
-        for i, key in enumerate(keys):
-            c.execute(
-                "INSERT INTO draft_queue (guild_id, position, player_key) VALUES (?, ?, ?)",
-                (guild_id, i, key),
-            )
-        return len(keys)
+# --------------------------------------------------------------------------
+# WATCHLIST
+# --------------------------------------------------------------------------
 
-
-
-# ──────────────────────────────────────────────────────────────────────────
-#  WATCHLIST
-# ──────────────────────────────────────────────────────────────────────────
 def watch_add(guild_id, user_id, player_key):
     with db.cursor() as c:
         c.execute(
@@ -1027,9 +1073,10 @@ def watch_watchers(guild_id, player_key):
     return [r["user_id"] for r in rows]
 
 
-# ──────────────────────────────────────────────────────────────────────────
-#  AUCTION HISTORY SEARCH + DRAFT RECAP
-# ──────────────────────────────────────────────────────────────────────────
+# --------------------------------------------------------------------------
+# AUCTION HISTORY SEARCH + DRAFT RECAP
+# --------------------------------------------------------------------------
+
 def search_sales(guild_id, player_key=None, user_id=None, limit=20):
     q = "SELECT * FROM auction_history WHERE guild_id=? AND status='sold'"
     params = [guild_id]
@@ -1082,9 +1129,10 @@ def draft_recap(guild_id):
     }
 
 
-# ──────────────────────────────────────────────────────────────────────────
-#  POWER RATING + H2H
-# ──────────────────────────────────────────────────────────────────────────
+# --------------------------------------------------------------------------
+# POWER RATING + H2H
+# --------------------------------------------------------------------------
+
 def power_rating(guild_id, user_id):
     squad = get_squad(guild_id, user_id)
     if not squad:
@@ -1119,7 +1167,10 @@ def head_to_head(guild_id, user_a, user_b, season_id=None):
         h_is_a = f["home_user"] == user_a
         a_score = hs if h_is_a else as_
         b_score = as_ if h_is_a else hs
-        if a_score > b_score: a_wins += 1
-        elif b_score > a_score: b_wins += 1
-        else: draws += 1
+        if a_score > b_score:
+            a_wins += 1
+        elif b_score > a_score:
+            b_wins += 1
+        else:
+            draws += 1
     return {"fixtures": fixtures, "a_wins": a_wins, "b_wins": b_wins, "draws": draws}

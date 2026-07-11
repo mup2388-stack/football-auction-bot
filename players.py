@@ -1,9 +1,11 @@
 """
-Player data: loads the bundled datasets, merges + de-dupes them, computes
-market values (calibrated for a draft where everyone must afford a full squad),
-ranks players into tiers, maps nationalities to flag emojis, groups positions
-into auction phases, and provides accent-insensitive search.
+Player data: loads the bundled datasets, merges + de-dupes them,
+computes market values (calibrated for a draft where everyone must
+afford a full squad), ranks players into tiers, maps nationalities
+to flag emojis, groups positions into auction phases, and provides
+accent-insensitive search.
 """
+
 import json
 import os
 import unicodedata
@@ -11,16 +13,17 @@ from functools import lru_cache
 
 from config import Config
 
-
 # --------------------------------------------------------------------------
 # Position groups (the "phases" / auction days)
 # --------------------------------------------------------------------------
+
 POSITION_GROUPS = {
     "GK":  {"GK"},
     "DEF": {"CB", "RB", "LB", "RWB", "LWB"},
     "MID": {"CDM", "CM", "CAM", "RM", "LM"},
     "FWD": {"ST", "CF", "LW", "RW"},
 }
+
 PHASE_ORDER = ["GK", "DEF", "MID", "FWD"]
 
 
@@ -34,6 +37,7 @@ def group_of(position: str) -> str:
 # --------------------------------------------------------------------------
 # Load + index
 # --------------------------------------------------------------------------
+
 @lru_cache(maxsize=1)
 def all_players():
     # Load FL26 real database if it exists, otherwise fall back to hand-curated files
@@ -121,50 +125,79 @@ def search(query: str, limit: int = 25):
 # --------------------------------------------------------------------------
 # Derived economics
 # --------------------------------------------------------------------------
+
+# Opening-bid floors (your "base price"):
+#   OVR < 75  → £15M
+#   OVR ≥ 75  → £25M
+BASE_PRICE_LOW = 15_000_000
+BASE_PRICE_HIGH = 25_000_000
+BASE_PRICE_OVR_CUTOFF = 75
+
+
+def base_price(ovr: int) -> int:
+    """Minimum opening bid for this OVR band."""
+    return BASE_PRICE_LOW if ovr < BASE_PRICE_OVR_CUTOFF else BASE_PRICE_HIGH
+
+
 def market_value(ovr: int, is_icon: bool = False) -> int:
     """
     Map an overall rating to a market value in pounds.
     All values are rounded to whole millions for clean auction math.
 
-    ACTIVE PLAYERS — tuned for a 32-manager draft with £800M each:
-        OVR 75  -> £3M        (cheap filler)
-        OVR 80  -> £11M
-        OVR 83  -> £22M
-        OVR 85  -> £37M
-        OVR 86  -> £47M       (superstar threshold)
-        OVR 88  -> £78M
-        OVR 89  -> £100M      (Mbappe — opening bid £50M)
-        OVR 90  -> £129M
-        OVR 91  -> £166M
+    Tuned for a 32-manager draft with £1B each and base floors of
+    £15M (OVR < 75) / £25M (OVR ≥ 75). Curve is gentler than the old
+    exponential so stars sit around £100–140M instead of £160–200M+.
 
-    ICONS — flat-tier pricing so GOAT-tier legends don't blow up the curve:
-        OVR 95+  -> £200M     (Maradona, Zidane, Garrincha)
-        OVR 92-94 -> £150M    (Beckenbauer, Ronaldo, Cruyff)
-        OVR 89-91 -> £110M    (Henry, Ronaldinho, Kahn)
-        OVR 86-88 -> £80M     (Gerrard, Pirlo, Pique)
-        OVR 80-85 -> £45M     (solid legends)
-        OVR <80  -> £20M      (role-player legends)
+    ACTIVE PLAYERS:
+        OVR < 75 → £15M          (filler floor)
+        OVR 75   → £25M          (base for gold)
+        OVR 80   → £42M
+        OVR 85   → £71M
+        OVR 88   → £97M
+        OVR 90   → £120M
+        OVR 91   → £133M
+
+    ICONS — flat-tier pricing so GOAT legends don't blow up the curve:
+        OVR 95+  → £150M
+        OVR 92–94 → £120M
+        OVR 89–91 → £90M
+        OVR 86–88 → £65M
+        OVR 80–85 → £40M
+        OVR <80   → £20M
     """
     if is_icon:
         if ovr >= 95:
-            return 200_000_000
-        if ovr >= 92:
             return 150_000_000
+        if ovr >= 92:
+            return 120_000_000
         if ovr >= 89:
-            return 110_000_000
+            return 90_000_000
         if ovr >= 86:
-            return 80_000_000
+            return 65_000_000
         if ovr >= 80:
-            return 45_000_000
+            return 40_000_000
         return 20_000_000
 
-    millions = round(3 * (1.285 ** (ovr - 75)))
-    return max(1, millions) * 1_000_000
+    if ovr < BASE_PRICE_OVR_CUTOFF:
+        return BASE_PRICE_LOW
+
+    # Soft exponential from £25M at OVR 75.
+    # Factor 1.11 → OVR 90 ≈ £120M, OVR 91 ≈ £133M (softer than old curve).
+    millions = round(25 * (1.11 ** (ovr - BASE_PRICE_OVR_CUTOFF)))
+    return max(25, millions) * 1_000_000
 
 
 def start_price(ovr: int, is_icon: bool = False) -> int:
-    """Opening bid = 50% of market value, floored at £1M."""
-    return max(1_000_000, market_value(ovr, is_icon) // 2)
+    """
+    Opening bid is FLAT by OVR band — no star premium on the open.
+
+      OVR < 75  → £15M
+      OVR ≥ 75  → £25M  (including icons / superstars)
+
+    Market value still scales with OVR for squad value, cards, and
+    the SOLD steal/overpay verdict. Bidding is what pushes prices up.
+    """
+    return base_price(ovr)
 
 
 def tier(ovr: int) -> str:
@@ -197,6 +230,7 @@ TIER_COLOUR = {
 # --------------------------------------------------------------------------
 # Helpers
 # --------------------------------------------------------------------------
+
 def slug(text: str) -> str:
     """Normalise to ascii lowercase kebab-case for stable keys & search."""
     nfkd = unicodedata.normalize("NFKD", text)
@@ -305,7 +339,7 @@ _FLAGS = {
     "Niger": "🇳🇪",
     "Nigeria": "🇳🇬",
     "North Macedonia": "🇲🇰",
-    "Northern Ireland": "🏴󠁧󠁢󠁮󠁩󠁲󠁿",
+    "Northern Ireland": "🇬🇧",
     "Norway": "🇳🇴",
     "Palestine": "🇵🇸",
     "Panama": "🇵🇦",
