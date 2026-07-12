@@ -92,19 +92,12 @@ class CardPickView(discord.ui.View):
             return
 
         if kind == "management":
-            msg = (
-                f"**Your management card**\n"
-                f"{a['card_text']}\n\n"
-                f"_Only you can see this. Check `/profile` anytime._"
-            )
-            if a["status"] == "completed":
-                msg += f"\n{EM.e('check')} Free pass — nothing to complete."
+            msg = Cards.dm_card_message("management", a)
         else:
             bal = E.get_balance(interaction.guild_id, interaction.user.id)
             msg = (
-                f"**Your finance card**\n"
-                f"{a['card_text']}\n\n"
-                f"New balance: **{E.money(bal)}**"
+                Cards.dm_card_message("finance", a)
+                + f"\nNew balance: **{E.money(bal)}**"
             )
 
         await interaction.followup.send(msg, ephemeral=True)
@@ -467,8 +460,8 @@ def setup(bot: commands.Bot):
                 try:
                     bal = E.get_balance(gid, int(uid))
                     await member.send(
-                        f"**Your finance card (auto-assigned on lock)**\n"
-                        f"{a.get('card_text', '')}\n\n"
+                        Cards.dm_card_message("finance", a)
+                        + f"\n_(auto-assigned on lock)_\n"
                         f"New balance: **{E.money(bal)}**"
                     )
                 except Exception:
@@ -650,6 +643,57 @@ def setup(bot: commands.Bot):
             f"→ {thief.mention} for **{E.money(res['price'])}** "
             f"(paid to {victim.mention}).\n"
             f"{thief.mention} can't bid for the next **{res['ban']}** auctions."
+        )
+
+    @cards_group.command(
+        name="swap",
+        description="[Admin] Resolve swap power: half-price cash + player trade",
+    )
+    @app_commands.describe(
+        taker="Manager using the swap card (pays half + gives a player)",
+        giver="Manager losing the target player",
+        take="Player taker wants (from giver's squad)",
+        give="Player taker offers (must be 80+ OVR)",
+    )
+    async def cards_swap(
+        interaction: discord.Interaction,
+        taker: discord.Member,
+        giver: discord.Member,
+        take: str,
+        give: str,
+    ):
+        if not is_admin(interaction.user.id):
+            await interaction.response.send_message(
+                f"{EM.e('x')} Admins only.", ephemeral=True
+            )
+            return
+        await interaction.response.defer()
+
+        take_p = P.get(take) or (P.search(take, limit=1) or [None])[0]
+        give_p = P.get(give) or (P.search(give, limit=1) or [None])[0]
+        if not take_p or not give_p:
+            await interaction.followup.send("Player not found.", ephemeral=True)
+            return
+        try:
+            res = Cards.use_power_swap(
+                interaction.guild_id,
+                taker.id,
+                giver.id,
+                take_p["key"],
+                give_p["key"],
+            )
+        except Exception as ex:
+            await interaction.followup.send(f"{EM.e('x')} {ex}", ephemeral=True)
+            return
+
+        tp, gp = res["take_player"], res["give_player"]
+        await interaction.followup.send(
+            f"{EM.e('check')} **Swap complete**\n"
+            f"{taker.mention} gets {P.flag(tp['country'])} **{tp['name']}** "
+            f"(was {E.money(res['take_price'])})\n"
+            f"{giver.mention} gets {P.flag(gp['country'])} **{gp['name']}** "
+            f"+ **{E.money(res['cash'])}** cash (half price)\n"
+            f"Swap card marked complete."
         )
 
     @cards_group.command(

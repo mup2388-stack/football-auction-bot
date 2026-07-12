@@ -38,6 +38,7 @@ from cards_data import (
     MANAGEMENT_PENALTY,
     EUROPE_COUNTRIES,
     PREMIER_LEAGUE_CLUBS,
+    LA_LIGA_CLUBS,
 )
 
 # Serialize draws so two simultaneous clicks never get the same card
@@ -772,6 +773,18 @@ def _is_premier_league(player: dict) -> bool:
     return False
 
 
+def _is_la_liga(player: dict) -> bool:
+    club = (player.get("club") or "").strip()
+    if not club or club == "ICON":
+        return False
+    cl = club.lower()
+    for name in LA_LIGA_CLUBS:
+        n = name.lower()
+        if n in cl or cl in n:
+            return True
+    return False
+
+
 def can_bid(guild_id: int, user_id: int, player: dict, amount: int) -> tuple[bool, str]:
     """
     Gate all auction bids.
@@ -800,12 +813,9 @@ def can_bid(guild_id: int, user_id: int, player: dict, amount: int) -> tuple[boo
 
         meta = _meta(a)
         card = _resolve_card_def(a.get("card_key") or "")
-        # META OVERRIDES WIN — /cards set writes max_night_spend etc. into meta_json.
         params = assignment_params(a)
-        ctype = meta.get("type") or card.get("type")
         rnd = get_auction_round(guild_id)
 
-        # ban first N rounds (0-indexed completed auctions before this one)
         ban_first = int(params.get("ban_first_n") or 0)
         if ban_first and rnd < ban_first:
             return False, (
@@ -813,12 +823,10 @@ def can_bid(guild_id: int, user_id: int, player: dict, amount: int) -> tuple[boo
                 f"(this is round {rnd + 1})."
             )
 
-        # max bid per player
         max_bid = params.get("max_bid")
         if max_bid is not None and amount > int(max_bid):
             return False, f"Your card caps single bids at {E.money(int(max_bid))}."
 
-        # night spend cap (include this bid)
         max_night = params.get("max_night_spend")
         if max_night is not None:
             spent = int(meta.get("night_spend") or 0)
@@ -828,12 +836,15 @@ def can_bid(guild_id: int, user_id: int, player: dict, amount: int) -> tuple[boo
                     f"(spent {E.money(spent)} so far)."
                 )
 
-        # group bans
         ban_groups = params.get("ban_groups") or []
         if ban_groups and player.get("group") in ban_groups:
             return False, f"Your card bans bidding on {player.get('group')} players."
 
-        # age bans (icons ignored when ignore_icons)
+        # min OVR restriction (can't buy below X)
+        min_ovr = params.get("min_ovr")
+        if min_ovr is not None and int(player.get("ovr") or 0) < int(min_ovr):
+            return False, f"Your card only allows players rated **{min_ovr}+**."
+
         ignore_icons = bool(params.get("ignore_icons"))
         is_ic = _is_icon(player)
         age = player.get("age")
@@ -848,10 +859,8 @@ def can_bid(guild_id: int, user_id: int, player: dict, amount: int) -> tuple[boo
             if params.get("min_age") is not None and age < int(params["min_age"]):
                 return False, f"Your card bans players under {params['min_age']}."
 
-        # max icons
         max_icons = params.get("max_icons")
         if max_icons is not None and is_ic:
-            meta = _meta(a)
             bought = int(meta.get("icons_bought") or 0)
             if bought >= int(max_icons):
                 return False, f"Your card allows at most {max_icons} icon(s) tonight."
@@ -896,6 +905,8 @@ def on_player_bought(guild_id: int, user_id: int, player: dict, price: int) -> O
         ok = int(player.get("ovr") or 0) >= int(params.get("ovr", 99))
     elif check == "buy_premier_league":
         ok = _is_premier_league(player)
+    elif check == "buy_la_liga":
+        ok = _is_la_liga(player)
     elif check == "buy_non_europe":
         country = player.get("country") or ""
         ok = country not in EUROPE_COUNTRIES
@@ -910,8 +921,21 @@ def on_player_bought(guild_id: int, user_id: int, player: dict, price: int) -> O
         )
     elif check == "buy_icon":
         ok = _is_icon(player)
+    elif check == "buy_active":
+        ok = not _is_icon(player)
     elif check == "buy_count":
         ok = int(meta.get("buys") or 0) >= int(params.get("count") or 1)
+    elif check == "buy_price_under":
+        ok = int(price) < int(params.get("max_price") or 0)
+    elif check == "buy_age_under":
+        if _is_icon(player) and params.get("ignore_icons"):
+            ok = False
+        else:
+            try:
+                age = int(player.get("age"))
+                ok = age <= int(params.get("max_age") or 24)
+            except (TypeError, ValueError):
+                ok = False
 
     if ok:
         _set_assignment_status(a["id"], "completed")
@@ -974,7 +998,7 @@ def use_power_steal(guild_id: int, thief_id: int, victim_id: int, player_key: st
             (guild_id, thief_id, player_key, p.get("position", ""), price),
         )
 
-    ban_n = int(card.get("params", {}).get("ban_after_use") or 5)
+    ban_n = int(card.get("params", {}).get("ban_after_use") or 7)
     set_temp_bid_ban(guild_id, thief_id, ban_n)
     _set_assignment_status(a["id"], "completed")
 
@@ -985,6 +1009,149 @@ def use_power_steal(guild_id: int, thief_id: int, victim_id: int, player_key: st
         "victim_id": victim_id,
         "ban": ban_n,
     }
+
+
+def use_power_swap(
+    guild_id: int,
+    taker_id: int,
+    giver_id: int,
+    take_key: str,
+    give_key: str,
+) -> dict:
+    """
+    Swap: taker gives their player (must be 80+ OVR by default) + pays half of
+    what giver paid for take_key. Taker receives take_key; giver receives give_key + cash.
+    """
+    day = get_open_day(guild_id, "management")
+    if not day:
+        raise RuntimeError("No management day open.")
+    a = get_assignment(day["id"], taker_id)
+    if not a:
+        raise RuntimeError("Taker has no management card.")
+    card = MANAGEMENT_BY_KEY.get(a["card_key"], {})
+    if card.get("params", {}).get("power") != "swap":
+        # allow admin synthetic keys
+        params = assignment_params(a)
+        if params.get("power") != "swap":
+            raise RuntimeError("This manager's card is not the swap power.")
+        min_give = int(params.get("min_give_ovr") or 80)
+    else:
+        min_give = int(card.get("params", {}).get("min_give_ovr") or 80)
+
+    if not E.owns(guild_id, taker_id, give_key):
+        raise RuntimeError("You don't own the player you're offering.")
+    if not E.owns(guild_id, giver_id, take_key):
+        raise RuntimeError("They don't own the player you want.")
+
+    give_p = P.get(give_key)
+    take_p = P.get(take_key)
+    if not give_p or not take_p:
+        raise RuntimeError("Player not found.")
+
+    if int(give_p.get("ovr") or 0) < min_give:
+        raise RuntimeError(
+            f"Your swap piece must be {min_give}+ OVR "
+            f"({give_p['name']} is {give_p.get('ovr')})."
+        )
+
+    with db.cursor() as c:
+        row = c.execute(
+            "SELECT acquired_price FROM squads "
+            "WHERE guild_id=? AND user_id=? AND player_key=?",
+            (guild_id, giver_id, take_key),
+        ).fetchone()
+        give_row = c.execute(
+            "SELECT acquired_price FROM squads "
+            "WHERE guild_id=? AND user_id=? AND player_key=?",
+            (guild_id, taker_id, give_key),
+        ).fetchone()
+
+    take_price = int(row["acquired_price"]) if row else int(take_p.get("value") or 0)
+    give_price = int(give_row["acquired_price"]) if give_row else int(give_p.get("value") or 0)
+    cash = take_price // 2  # half of what they paid for the target
+
+    if not E.can_afford(guild_id, taker_id, cash):
+        raise RuntimeError(
+            f"You need {E.money(cash)} (half of {E.money(take_price)}) for this swap."
+        )
+
+    # money
+    E.adjust_balance(guild_id, taker_id, -cash)
+    E.adjust_balance(guild_id, giver_id, cash)
+
+    # ownership swap
+    with db.cursor() as c:
+        c.execute(
+            "DELETE FROM squads WHERE guild_id=? AND user_id=? AND player_key=?",
+            (guild_id, taker_id, give_key),
+        )
+        c.execute(
+            "DELETE FROM squads WHERE guild_id=? AND user_id=? AND player_key=?",
+            (guild_id, giver_id, take_key),
+        )
+        c.execute(
+            "INSERT OR REPLACE INTO squads "
+            "(guild_id, user_id, player_key, position, acquired_price) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (guild_id, taker_id, take_key, take_p.get("position", ""), take_price),
+        )
+        c.execute(
+            "INSERT OR REPLACE INTO squads "
+            "(guild_id, user_id, player_key, position, acquired_price) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (guild_id, giver_id, give_key, give_p.get("position", ""), give_price),
+        )
+        # clear lineup holds
+        for uid, key in ((taker_id, give_key), (giver_id, take_key)):
+            try:
+                c.execute(
+                    "DELETE FROM lineup_overrides "
+                    "WHERE guild_id=? AND user_id=? AND player_key=?",
+                    (guild_id, uid, key),
+                )
+            except Exception:
+                pass
+
+    _set_assignment_status(a["id"], "completed")
+
+    return {
+        "take_player": take_p,
+        "give_player": give_p,
+        "cash": cash,
+        "take_price": take_price,
+        "taker_id": taker_id,
+        "giver_id": giver_id,
+    }
+
+
+def dm_card_message(kind: str, assignment: dict) -> str:
+    """Full private message for a drawn card (task + explanation)."""
+    if kind == "finance":
+        return (
+            f"**Your finance card**\n"
+            f"{assignment.get('card_text', '')}\n\n"
+            f"_Balances update instantly. Confused? Contact an admin._"
+        )
+
+    key = assignment.get("card_key") or ""
+    card = MANAGEMENT_BY_KEY.get(key, {})
+    if not card and key.startswith("admin_"):
+        parts = key.split("_", 2)
+        if len(parts) == 3:
+            card = MANAGEMENT_BY_KEY.get(parts[2], {})
+
+    text = assignment.get("card_text") or card.get("text") or ""
+    extra = (card.get("dm_extra") or "").strip()
+    msg = f"**Your management card**\n{text}\n"
+    if assignment.get("status") == "completed" or card.get("type") == "free":
+        msg += "\nFree pass — nothing to complete.\n"
+    if extra:
+        msg += f"\n{extra}\n"
+    msg += (
+        "\nCheck `/profile` anytime (✅ / ❌).\n"
+        "If you're confused about this task, **contact an admin**."
+    )
+    return msg
 
 
 def use_power_peek(guild_id: int, user_id: int, power: str = "peek_player") -> dict:
