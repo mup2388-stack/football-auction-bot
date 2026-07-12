@@ -481,7 +481,10 @@ else:
                     _cur.execute(sql, params or ())
                     results.append(None)
                 return results
-            cur.execute_batch = _execute_batch  # type: ignore[attr-defined]
+            try:
+                cur.execute_batch = _execute_batch  # type: ignore[attr-defined]
+            except (AttributeError, TypeError):
+                pass
         try:
             yield cur
             conn.commit()

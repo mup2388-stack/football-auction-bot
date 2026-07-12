@@ -1039,6 +1039,53 @@ def tactics_api(target_uid):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/watchlist/<path:player_key>", methods=["POST", "DELETE"])
+def watchlist_api(player_key):
+    user = _current_user()
+    if not user:
+        return jsonify({"error": "Not logged in."}), 401
+    gid = _guild_id()
+    uid = int(user["id"])
+    if request.method == "POST":
+        E.watch_add(gid, uid, player_key)
+        return jsonify({"ok": True, "watching": True})
+    else:
+        E.watch_remove(gid, uid, player_key)
+        return jsonify({"ok": True, "watching": False})
+
+
+@app.route("/watchlist")
+def watchlist_page():
+    user = _current_user()
+    gid = _guild_id()
+    if not user:
+        return redirect("/login")
+    keys = E.watch_list(gid, int(user["id"]))
+    players = []
+    sold = E.sold_player_keys(gid)
+    for k in keys:
+        p = P.get(k)
+        if not p:
+            continue
+        is_sold = k in sold
+        owner_team = None
+        if is_sold:
+            owner = E.get_player_owner(gid, k)
+            if owner:
+                owner_team = owner[1]
+        try:
+            value_str = _money(P.market_value(p["ovr"], is_icon=P.is_icon(p)))
+        except Exception:
+            value_str = _money(p.get("value") or 0)
+        players.append({
+            "key": p["key"], "name": p["name"], "ovr": p["ovr"],
+            "position": p.get("position", ""), "club": p.get("club", ""),
+            "country": p.get("country", ""), "face_url": _face_url(p["key"]),
+            "value": value_str, "is_sold": is_sold, "owner_team": owner_team,
+        })
+    return render_template("watchlist.html", active_page="watchlist", players=players)
+
+
 def _send_webhook(title, description):
     """POST a message to the configured Discord webhook."""
     url = Config.WEBHOOK_URL

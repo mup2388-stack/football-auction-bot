@@ -2530,3 +2530,18 @@ img.loaded, img[src$=".png"]:not([src*="/face/"]):not([src*="/logo/"]) {
   .pagination { gap: 4px; }
   .page-btn { min-width: 34px; height: 34px; padding: 0 8px; font-size: 13px; }
 }
+
+/* ===========================================================================
+   WATCHLIST TOGGLE + NAV SIZING
+   =========================================================================== */
+.watch-toggle {
+  flex-shrink: 0;
+  width: 28px; height: 28px; border: none; background: transparent;
+  color: var(--ink-dim); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; transition: all 0.15s ease;
+}
+.watch-toggle:hover { background: var(--panel-hi); color: var(--crimson); }
+.watch-toggle.watching { color: var(--crimson); }
+.watch-toggle.watching:hover { color: var(--ink-dim); }
+.player-card-wrap { position: relative; }

@@ -130,6 +130,29 @@ async def all_player_autocomplete(interaction: discord.Interaction, current: str
     return choices
 
 
+async def sold_autocomplete(interaction: discord.Interaction, current: str):
+    """Suggest only SOLD players - for /unsell."""
+    sold_keys = E.sold_player_keys(interaction.guild_id)
+    if not sold_keys:
+        return []
+    choices = []
+    q_lower = current.lower().strip() if current else ""
+    for key in sold_keys:
+        p = P.get(key)
+        if not p:
+            continue
+        if q_lower and q_lower not in p["name"].lower():
+            continue
+        owner = E.get_player_owner(interaction.guild_id, p["key"])
+        owner_name = owner[1] if owner and owner[1] else "?"
+        choices.append(app_commands.Choice(
+            name=f"{p['name']} ({p['ovr']} OVR) - {owner_name}",
+            value=p["key"]))
+        if len(choices) >= 25:
+            break
+    return choices
+
+
 PHASE_CHOICES = [
     app_commands.Choice(name="All positions", value="ALL"),
     app_commands.Choice(name="Goalkeepers (GK)", value="GK"),
@@ -1525,6 +1548,58 @@ async def reset(interaction: discord.Interaction, user: discord.Member):
     E.ensure_user(interaction.guild_id, user.id)
     await interaction.followup.send(
         f"Reset {user.mention}. Budget: {E.money(Config.STARTING_BALANCE)}.")
+
+
+@bot.tree.command(name="unsell", description="[Admin] Remove a player from a team, refund them, and put player back in the queue.")
+@app_commands.describe(name="The player to unsell (sold players)")
+@app_commands.autocomplete(name=sold_autocomplete)
+async def unsell(interaction: discord.Interaction, name: str):
+    await interaction.response.defer()
+    if not is_admin(interaction.user.id):
+        await interaction.followup.send(f"{EM.e('x')} Admins only.", ephemeral=True)
+        return
+    results = P.search(name, limit=1)
+    if not results:
+        await interaction.followup.send(f"{EM.e('x')} Player not found.", ephemeral=True)
+        return
+    p = results[0]
+    owner = E.get_player_owner(interaction.guild_id, p["key"])
+    if not owner:
+        await interaction.followup.send(
+            f"{EM.e('x')} {p['name']} is not currently owned by anyone.", ephemeral=True)
+        return
+    owner_uid = owner[0]
+    owner_team = owner[1] or "Unknown"
+    sale_price = 0
+    with db.cursor() as c:
+        row = c.execute(
+            "SELECT final_price FROM auction_history "
+            "WHERE guild_id=? AND player_key=? AND winner_id=? AND status='sold' "
+            "ORDER BY finished_at DESC LIMIT 1",
+            (interaction.guild_id, p["key"], owner_uid),
+        ).fetchone()
+    if row:
+        sale_price = row["final_price"]
+    with db.cursor() as c:
+        c.execute(
+            "DELETE FROM squads WHERE guild_id=? AND player_key=?",
+            (interaction.guild_id, p["key"]),
+        )
+        c.execute(
+            "UPDATE auction_history SET status='void' "
+            "WHERE guild_id=? AND player_key=? AND winner_id=? AND status='sold'",
+            (interaction.guild_id, p["key"], owner_uid),
+        )
+    if sale_price > 0:
+        E.adjust_balance(interaction.guild_id, owner_uid, sale_price)
+    E.queue_add(interaction.guild_id, p["key"])
+    member = interaction.guild.get_member(owner_uid)
+    owner_mention = member.mention if member else f"<@{owner_uid}>"
+    await interaction.followup.send(
+        f"{EM.e('check')} **{p['name']}** unsold.\n"
+        f"Removed from {owner_mention} ({owner_team}).\n"
+        f"Refunded **{E.money(sale_price)}**.\n"
+        f"Player added back to the queue. Use `/next` to re-auction.")
 
 
 @bot.tree.command(description="[Admin] Reset ALL managers' budgets, squads, and lineups.")
