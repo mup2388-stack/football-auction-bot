@@ -2,26 +2,80 @@
 {% block title %}{{ player.name }} &middot; AuctionBot{% endblock %}
 
 {% block content %}
+{% set s = player.get('stats') or {} %}
+{% set as_ = all_stats if all_stats is defined else (player.get('all_stats') or {}) %}
+
+{% set pac = s.get('pac') or (((as_.get('Speed', 40) + as_.get('Acceleration', 40)) / 2) | round | int) %}
+{% set sho = s.get('sho') or (((as_.get('Finishing', 40) + as_.get('KickingPower', 40)) / 2) | round | int) %}
+{% set pas = s.get('pas') or (((as_.get('LowPass', 40) + as_.get('LoftedPass', 40)) / 2) | round | int) %}
+{% set dri = s.get('dri') or (((as_.get('Dribbling', 40) + as_.get('BallControl', 40)) / 2) | round | int) %}
+{% set deff = s.get('def') or (((as_.get('DefensiveAwareness', 40) + as_.get('BallWinning', 40)) / 2) | round | int) %}
+{% set phy = s.get('phy') or (((as_.get('PhysicalContact', 40) + as_.get('Stamina', 40)) / 2) | round | int) %}
+
+{% if player.position == 'GK' and not s.get('pac') %}
+  {% set pac = ((as_.get('Speed', 40) + as_.get('Acceleration', 40)) / 2) | round | int %}
+  {% set sho = ((as_.get('GKClearing', 40) + as_.get('KickingPower', 40)) / 2) | round | int %}
+  {% set pas = ((as_.get('LowPass', 40) + as_.get('LoftedPass', 40)) / 2) | round | int %}
+  {% set dri = ((as_.get('GKCatching', 40) + as_.get('BallControl', 40)) / 2) | round | int %}
+  {% set deff = ((as_.get('GKAwareness', 40) + as_.get('GKReflexes', 40)) / 2) | round | int %}
+  {% set phy = ((as_.get('GKReach', 40) + as_.get('PhysicalContact', 40)) / 2) | round | int %}
+{% endif %}
+
 <div class="player-hero reveal">
   <div class="player-hero-bg"></div>
-  <div class="player-hero-content">
-    <img src="{{ face_url }}" class="player-hero-face" alt="">
-    <div class="player-hero-info">
-      <div class="player-hero-name text-3d">{{ player.name }}</div>
-      <div class="player-hero-meta">
-        <span class="ovr-badge {% if player.ovr >= 90 %}ovr-90{% elif player.ovr >= 80 %}ovr-80{% else %}ovr-70{% endif %}">{{ player.ovr }} OVR</span>
-        <span>{{ player.position }}</span>
-        <span>{{ player.get('country', '') }}</span>
-        {% if owner_team %}
-        <span>
-          {% set _logo = logo_url(owner_team) %}
-          {% if _logo %}<img src="{{ _logo }}" class="team-logo" alt="" style="display:inline-block;vertical-align:middle;">{% endif %}
-          {{ owner_team }}
-        </span>
-        {% else %}
-        <span>{{ player.get('club', '') }}</span>
-        {% endif %}
+  <div class="player-hero-content player-hero-with-radar">
+    <div class="player-hero-left">
+      <img src="{{ face_url }}" class="player-hero-face" alt="">
+      <div class="player-hero-info">
+        <div class="player-hero-name text-3d">{{ player.name }}</div>
+        <div class="player-hero-meta">
+          <span class="ovr-badge {% if player.ovr >= 90 %}ovr-90{% elif player.ovr >= 80 %}ovr-80{% else %}ovr-70{% endif %}">{{ player.ovr }} OVR</span>
+          <span>{{ player.position }}</span>
+          <span>{{ player.get('country', '') }}</span>
+          {% if owner_team %}
+          <span>
+            {% set _logo = logo_url(owner_team) %}
+            {% if _logo %}<img src="{{ _logo }}" class="team-logo" alt="" style="display:inline-block;vertical-align:middle;">{% endif %}
+            {{ owner_team }}
+          </span>
+          {% else %}
+          <span>{{ player.get('club', '') }}</span>
+          {% endif %}
+        </div>
       </div>
+    </div>
+
+    {# clean wheel only — no panel, no title, no chips #}
+    <div class="player-hero-radar radar-stage"
+         data-pac="{{ pac }}"
+         data-sho="{{ sho }}"
+         data-pas="{{ pas }}"
+         data-dri="{{ dri }}"
+         data-def="{{ deff }}"
+         data-phy="{{ phy }}"
+         aria-label="PAC {{ pac }} SHO {{ sho }} PAS {{ pas }} DRI {{ dri }} DEF {{ deff }} PHY {{ phy }}">
+      <svg class="radar-svg radar-svg-clean" viewBox="0 0 320 320" role="img">
+        <defs>
+          <linearGradient id="radarFill" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#7CFF6B" stop-opacity="0.50"/>
+            <stop offset="55%" stop-color="#2ECC71" stop-opacity="0.22"/>
+            <stop offset="100%" stop-color="#0B3D2E" stop-opacity="0.12"/>
+          </linearGradient>
+          <filter id="radarGlow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="2" result="b"/>
+            <feMerge>
+              <feMergeNode in="b"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        <g class="radar-rings"></g>
+        <g class="radar-spokes"></g>
+        <polygon class="radar-shape" fill="url(#radarFill)" stroke="#E8FFE4" stroke-width="2"
+                 stroke-dasharray="5 4" stroke-linejoin="round" filter="url(#radarGlow)"></polygon>
+        <g class="radar-dots"></g>
+        <g class="radar-labels"></g>
+      </svg>
     </div>
   </div>
 </div>
@@ -70,7 +124,6 @@
 
 </div>
 
-{# ===== POSITION COMPATIBILITY (same idea as Discord player card) ===== #}
 {% set pr = player.get('position_ratings') or {} %}
 {% set reg = player.get('position') or '' %}
 {% set is_gk = (reg == 'GK') %}
@@ -89,9 +142,7 @@
   <div class="pos-pitch-wrap">
     <div class="pos-pitch{% if is_gk %} is-gk{% endif %}" aria-label="Position map">
       {% if is_gk %}
-        {% set layout = [
-          ('GK', 50, 88)
-        ] %}
+        {% set layout = [ ('GK', 50, 88) ] %}
       {% else %}
         {% set layout = [
           ('LW', 12, 14), ('ST', 50, 10), ('CF', 50, 20), ('RW', 88, 14),
@@ -124,30 +175,7 @@
       {% endfor %}
     </div>
   </div>
-
-  <div class="pos-compat-tags">
-    <div class="pos-tag-row">
-      <span class="pos-tag-label natural">Natural</span>
-      {% set ns = namespace(has_nat=false) %}
-      {% for code, val in pr.items()|sort %}
-        {% if val is not none and val >= 2 %}
-          {% set ns.has_nat = true %}
-          <span class="pos-chip natural">{{ code }}</span>
-        {% endif %}
-      {% endfor %}
-      {% if not ns.has_nat %}<span class="pos-empty">—</span>{% endif %}
-    </div>
-    <div class="pos-tag-row">
-      <span class="pos-tag-label familiar">Familiar</span>
-      {% set ns2 = namespace(has_fam=false) %}
-      {% for code, val in pr.items()|sort %}
-        {% if val is not none and val == 1 %}
-          {% set ns2.has_fam = true %}
-          <span class="pos-chip familiar">{{ code }}</span>
-        {% endif %}
-      {% endfor %}
-      {% if not ns2.has_fam %}<span class="pos-empty">—</span>{% endif %}
-    </div>
-  </div>
 </section>
+
+<script src="{{ url_for('static', filename='js/radar-wheel.js') }}"></script>
 {% endblock %}

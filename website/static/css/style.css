@@ -1519,63 +1519,7 @@ a.bench-player:hover .bench-face { border-color: var(--gold); }
   line-height: 1;
 }
 
-.pos-compat-tags {
-  margin-top: var(--sp-4);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.pos-tag-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.pos-tag-row.muted {
-  color: var(--ink-muted);
-  font-size: 13px;
-}
-
-.pos-tag-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  min-width: 72px;
-  color: var(--ink-muted);
-}
-
-.pos-tag-label.natural { color: #6dff55; }
-.pos-tag-label.familiar { color: #ffd24a; }
-
-.pos-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  border: 1px solid transparent;
-}
-
-.pos-chip.natural {
-  color: #0a1a08;
-  background: rgba(57, 255, 20, 0.85);
-  border-color: rgba(57, 255, 20, 0.5);
-}
-
-.pos-chip.familiar {
-  color: #231900;
-  background: rgba(255, 200, 0, 0.85);
-  border-color: rgba(255, 200, 0, 0.5);
-}
-
-.pos-empty {
-  color: var(--ink-dim);
-  font-size: 13px;
-}
+/* Tags footer removed from player page — pitch already shows the mapping */
 
 @media (max-width: 640px) {
   .pos-compat-head {
@@ -1589,10 +1533,67 @@ a.bench-player:hover .bench-face { border-color: var(--gold); }
   }
 }
 
-/* player detail two-col → one col on mobile */
 @media (max-width: 768px) {
   .player-detail-grid { grid-template-columns: 1fr !important; }
 }
+
+
+.player-hero-with-radar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px 32px;
+  width: 100%;
+}
+
+.player-hero-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.player-hero-radar {
+  flex: 0 0 auto;
+  margin-left: auto;
+  line-height: 0;
+}
+
+.radar-svg-clean {
+  width: min(220px, 32vw);
+  height: auto;
+  display: block;
+  background: transparent !important;
+  overflow: visible;
+}
+
+@media (max-width: 768px) {
+  .player-hero-with-radar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .player-hero-radar {
+    margin: 4px auto 0;
+  }
+
+  .radar-svg-clean {
+    width: min(200px, 64vw);
+  }
+
+  .player-detail-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radar-shape {
+    filter: none;
+  }
+}
+
+
 
 
 /* ===========================================================================
