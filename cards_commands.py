@@ -175,7 +175,11 @@ def _assignments_reveal_embed(guild_id: int, day: dict, kind: str) -> discord.Em
             "Anyone who didn't pick gets a leftover card on their **first bid**."
         )
     else:
-        e.description = "Picks closed. Button removed. Balances already applied."
+        e.description = (
+            "Picks closed. Button removed.\n"
+            "Everyone with a drawn team got a finance card "
+            "(auto-dealt if they didn't click). Balances already applied."
+        )
 
     if not assigns:
         e.add_field(name="Results", value="Nobody picked a card.", inline=False)
@@ -421,6 +425,17 @@ def setup(bot: commands.Bot):
                     "No open finance day.", ephemeral=True
                 )
                 return
+
+            # Auto-deal leftover finance cards to every drawn manager
+            # who didn't click Pick a Card (balance applied immediately)
+            try:
+                summary = Cards.auto_assign_finance_on_lock(gid, day["id"])
+            except Exception as ex:
+                await interaction.followup.send(
+                    f"{EM.e('x')} Auto-assign failed: {ex}", ephemeral=True
+                )
+                return
+
             Cards.lock_day(day["id"])
             # Finance finished after reveal
             import database as _db
@@ -432,8 +447,32 @@ def setup(bot: commands.Bot):
                 )
             day = Cards.get_day(day["id"]) or day
             e = _assignments_reveal_embed(gid, day, "finance")
+            auto_n = summary.get("assigned_count", 0)
+            if auto_n:
+                e.set_footer(
+                    text=(
+                        f"{len(Cards.list_assignments(day['id']))} manager(s) · "
+                        f"{auto_n} auto-dealt on lock"
+                    )
+                )
             await _strip_pick_button(interaction.guild, day, "finance", e)
             await interaction.followup.send(embed=e)
+
+            # Best-effort DM for people who were auto-dealt
+            for a in summary.get("assigned") or []:
+                uid = a.get("user_id")
+                member = interaction.guild.get_member(int(uid)) if uid else None
+                if not member:
+                    continue
+                try:
+                    bal = E.get_balance(gid, int(uid))
+                    await member.send(
+                        f"**Your finance card (auto-assigned on lock)**\n"
+                        f"{a.get('card_text', '')}\n\n"
+                        f"New balance: **{E.money(bal)}**"
+                    )
+                except Exception:
+                    pass
             return
 
         if act == "status":
@@ -477,6 +516,98 @@ def setup(bot: commands.Bot):
             f"{EM.e('check')} Marked complete for {user.mention}: "
             f"**{a['card_text']}**"
         )
+
+    @cards_group.command(
+        name="set",
+        description="[Admin] Change a manager's management card / spend caps",
+    )
+    @app_commands.describe(
+        user="Manager whose card to change",
+        max_spend_millions="Total spend cap tonight in millions (e.g. 250 = £250M). Leave empty to keep.",
+        max_bid_millions="Max bid on ONE player in millions (e.g. 90). Leave empty to keep.",
+        custom_text="Optional full replacement task text",
+        preset="Optional: switch to a predefined card type",
+    )
+    @app_commands.choices(preset=[
+        app_commands.Choice(name="Keep current card (only edit caps/text)", value="keep"),
+        app_commands.Choice(name="No task (free pass)", value="no_task_ggs"),
+        app_commands.Choice(name="Spend cap £100M night", value="spend_cap_100m_night"),
+        app_commands.Choice(name="Max £90M per player", value="max_per_player_90m"),
+        app_commands.Choice(name="Max £70M per player", value="max_per_player_70m"),
+        app_commands.Choice(name="Can't bid first 3 rounds", value="no_bid_first_3_a"),
+        app_commands.Choice(name="Buy 1 icon", value="buy_icon"),
+        app_commands.Choice(name="Buy at least 2 players", value="buy_two_players"),
+        app_commands.Choice(name="Max 1 icon tonight", value="max_one_icon"),
+        app_commands.Choice(name="No defenders", value="no_defenders"),
+    ])
+    async def cards_set(
+        interaction: discord.Interaction,
+        user: discord.Member,
+        max_spend_millions: int = None,
+        max_bid_millions: int = None,
+        custom_text: str = None,
+        preset: app_commands.Choice[str] = None,
+    ):
+        if not is_admin(interaction.user.id):
+            await interaction.response.send_message(
+                f"{EM.e('x')} Admins only.", ephemeral=True
+            )
+            return
+        await interaction.response.defer()
+
+        if (
+            max_spend_millions is None
+            and max_bid_millions is None
+            and not (custom_text and custom_text.strip())
+            and (preset is None or preset.value == "keep")
+        ):
+            await interaction.followup.send(
+                "Nothing to change. Set a preset, custom text, and/or a spend/bid cap.",
+                ephemeral=True,
+            )
+            return
+
+        card_key = None
+        if preset and preset.value != "keep":
+            card_key = preset.value
+
+        max_night = (
+            int(max_spend_millions) * 1_000_000
+            if max_spend_millions is not None
+            else None
+        )
+        max_bid = (
+            int(max_bid_millions) * 1_000_000
+            if max_bid_millions is not None
+            else None
+        )
+
+        try:
+            a = Cards.admin_set_management_card(
+                interaction.guild_id,
+                user.id,
+                card_key=card_key,
+                custom_text=custom_text,
+                max_night_spend=max_night,
+                max_bid=max_bid,
+            )
+        except Exception as ex:
+            await interaction.followup.send(f"{EM.e('x')} {ex}", ephemeral=True)
+            return
+
+        who = Cards.manager_line(interaction.guild_id, user.id)
+        await interaction.followup.send(
+            f"{EM.e('check')} Updated card for **{who}**\n"
+            f"**New task:** {a['card_text']}"
+        )
+        try:
+            await user.send(
+                f"**Your management card was updated by admin.**\n"
+                f"{a['card_text']}\n\n"
+                f"Check `/profile` anytime."
+            )
+        except Exception:
+            pass
 
     @cards_group.command(
         name="steal",

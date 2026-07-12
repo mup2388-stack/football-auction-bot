@@ -336,24 +336,123 @@ def clear_all_overrides(guild_id: int, user_id: int):
         )
 
 
+# --------------------------------------------------------------------------
+# Forced substitutes (bench) — never auto-picked into Starting XI
+# --------------------------------------------------------------------------
+
+def _ensure_bench_table():
+    with db.cursor() as c:
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bench (
+                guild_id   INTEGER NOT NULL,
+                user_id    INTEGER NOT NULL,
+                player_key TEXT    NOT NULL,
+                PRIMARY KEY (guild_id, user_id, player_key)
+            )
+            """
+        )
+
+
+def get_bench_keys(guild_id: int, user_id: int) -> set:
+    """Player keys forced onto the substitutes (excluded from auto XI)."""
+    _ensure_bench_table()
+    with db.cursor() as c:
+        rows = c.execute(
+            "SELECT player_key FROM bench WHERE guild_id=? AND user_id=?",
+            (guild_id, user_id),
+        ).fetchall()
+    return {r["player_key"] for r in rows}
+
+
+def is_benched(guild_id: int, user_id: int, player_key: str) -> bool:
+    return player_key in get_bench_keys(guild_id, user_id)
+
+
+def set_bench(guild_id: int, user_id: int, player_key: str) -> dict:
+    """
+    Force a player onto substitutes: they will not be auto-picked into the XI.
+    Also clears any lineup slot override that currently holds them.
+    """
+    _ensure_bench_table()
+    p = P.get(player_key)
+    if not p:
+        results = P.search(str(player_key), limit=1)
+        p = results[0] if results else None
+    if not p:
+        raise RuntimeError("Player not found.")
+    key = p["key"]
+    if not owns(guild_id, user_id, key):
+        raise RuntimeError("You don't own that player.")
+
+    with db.cursor() as c:
+        c.execute(
+            "INSERT OR IGNORE INTO bench (guild_id, user_id, player_key) VALUES (?, ?, ?)",
+            (guild_id, user_id, key),
+        )
+        # Kick them out of any starting slot override
+        c.execute(
+            "DELETE FROM lineup_overrides "
+            "WHERE guild_id=? AND user_id=? AND player_key=?",
+            (guild_id, user_id, key),
+        )
+    return {"player": p, "benched": True}
+
+
+def clear_bench(guild_id: int, user_id: int, player_key: str) -> dict:
+    """Allow a player back into auto Starting XI selection."""
+    _ensure_bench_table()
+    p = P.get(player_key)
+    if not p:
+        results = P.search(str(player_key), limit=1)
+        p = results[0] if results else None
+    if not p:
+        raise RuntimeError("Player not found.")
+    key = p["key"]
+    with db.cursor() as c:
+        c.execute(
+            "DELETE FROM bench WHERE guild_id=? AND user_id=? AND player_key=?",
+            (guild_id, user_id, key),
+        )
+    return {"player": p, "benched": False}
+
+
+def clear_all_bench(guild_id: int, user_id: int):
+    _ensure_bench_table()
+    with db.cursor() as c:
+        c.execute(
+            "DELETE FROM bench WHERE guild_id=? AND user_id=?",
+            (guild_id, user_id),
+        )
+
+
 def get_lineup(guild_id: int, user_id: int):
     """
     Get the full lineup: formation + assigned players per slot.
     Apply manual overrides FIRST, then auto-fill remaining slots.
+    Players on the forced bench list are never auto-picked into the XI.
     """
     formation_name = get_formation(guild_id, user_id)
     formation = FM.get_formation(formation_name)
     squad = get_squad(guild_id, user_id)
     overrides = get_lineup_overrides(guild_id, user_id)
+    benched = get_bench_keys(guild_id, user_id)
     slots = FM.all_slots(formation)
     result = [None] * len(slots)
     used_keys = set()
 
+    # Forced bench never starts — treat as already "used" for auto-fill
+    used_keys |= benched
+
     # PASS 1: Apply manual overrides first (they take priority)
+    # If someone was benched, their slot override was cleared in set_bench.
     for slot in slots:
         idx = slot["index"]
         if idx in overrides:
             override_key = overrides[idx]
+            if override_key in benched:
+                result[idx] = (slot, None)
+                continue
             override_player = next((p for p in squad if p["key"] == override_key), None)
             if override_player and override_key not in used_keys:
                 result[idx] = (slot, override_player)
@@ -361,7 +460,7 @@ def get_lineup(guild_id: int, user_id: int):
             else:
                 result[idx] = (slot, None)
 
-    # PASS 2: Auto-assign remaining slots
+    # PASS 2: Auto-assign remaining slots (skip benched)
     squad_sorted = sorted(squad, key=lambda p: p["ovr"], reverse=True)
     by_group = {"GK": [], "DEF": [], "MID": [], "FWD": []}
     for p in squad_sorted:
@@ -721,6 +820,8 @@ def get_needs(guild_id: int, user_id: int):
     """
     Analyze what a manager still needs.
     Returns dict with counts, needed, budget, min_cost, max_bid, complete, squad_size.
+
+    max_bid = budget left after reserving cheapest fill for remaining required slots.
     """
     squad = get_squad(guild_id, user_id)
     budget = get_balance(guild_id, user_id)
@@ -745,6 +846,32 @@ def get_needs(guild_id: int, user_id: int):
         "max_bid": max_bid,
         "complete": complete,
         "squad_size": len(squad),
+    }
+
+
+# Soft buffer on top of /needs max_bid during live auctions
+AUCTION_MAX_BID_BUFFER = 10_000_000  # +£10M
+
+
+def auction_max_bid(guild_id: int, user_id: int) -> dict:
+    """
+    Hard cap for a single bid in live auctions:
+      floor = get_needs().max_bid  (budget − cheapest fill for remaining slots)
+      cap   = floor + £10M buffer
+
+    Still subject to can_afford (never above balance).
+    """
+    needs = get_needs(guild_id, user_id)
+    floor = int(needs["max_bid"])
+    cap = floor + AUCTION_MAX_BID_BUFFER
+    return {
+        "floor": floor,
+        "cap": cap,
+        "buffer": AUCTION_MAX_BID_BUFFER,
+        "budget": needs["budget"],
+        "min_cost": needs["min_cost"],
+        "total_needed": needs["total_needed"],
+        "complete": needs["complete"],
     }
 
 
@@ -1187,22 +1314,21 @@ def replace_manager(guild_id: int, old_user_id: int, new_user_id: int) -> dict:
     Same team name, logo, balance, squad, formation, lineup, tactics,
     watchlist, card assignment, season slot, fixtures, trades, auction history.
 
-    new_user_id must not already have a squad / season seat in this guild
-    (or we refuse to avoid merging two managers).
+    IMPORTANT: Does NOT UPDATE the users primary key in-place (breaks on Turso).
+    Instead: copy users row → move child tables → delete old users row →
+    force-write team_name/logo onto the new user.
     """
     old_user_id = int(old_user_id)
     new_user_id = int(new_user_id)
     if old_user_id == new_user_id:
         raise RuntimeError("Old and new user are the same person.")
 
-    # Refuse if new already owns players or is a drawn season manager
     if squad_count(guild_id, new_user_id) > 0:
         raise RuntimeError(
-            "New user already has a squad in this server. Reset them first "
-            "(`/reset @new`) or pick someone with no team."
+            "New user already has a squad in this server. "
+            "Run `/reset @new` first, or pick someone with no team."
         )
 
-    # Season seat check (if league tables exist)
     try:
         import league as L
         s = L.active_season(guild_id)
@@ -1216,49 +1342,99 @@ def replace_manager(guild_id: int, old_user_id: int, new_user_id: int) -> dict:
         raise
     except Exception:
         s = None
+        L = None
 
-    # Old must exist as a manager (has a users row or squad)
     with db.cursor() as c:
         old_row = c.execute(
             "SELECT * FROM users WHERE guild_id=? AND user_id=?",
             (guild_id, old_user_id),
         ).fetchone()
-    if old_row is None and squad_count(guild_id, old_user_id) == 0:
-        raise RuntimeError("Old user has no account/squad in this server.")
 
-    team_name = get_team_name(guild_id, old_user_id)
-    bal = get_balance(guild_id, old_user_id) if old_row is not None else Config.STARTING_BALANCE
+    # Also try season team name if users.team_name missing
+    season_team_name = None
+    try:
+        import league as L2
+        s2 = L2.active_season(guild_id)
+        if s2:
+            for t in L2.teams(s2["id"]):
+                if int(t["user_id"]) == old_user_id and t.get("team_name"):
+                    season_team_name = t["team_name"]
+                    break
+    except Exception:
+        pass
+
+    if old_row is None and squad_count(guild_id, old_user_id) == 0 and not season_team_name:
+        raise RuntimeError("Old user has no account/squad/season seat in this server.")
+
+    # Snapshot old profile
+    if old_row is not None:
+        try:
+            old = dict(old_row)
+        except Exception:
+            old = {k: old_row[k] for k in old_row.keys()}
+        bal = int(old.get("balance") or Config.STARTING_BALANCE)
+        team_name = old.get("team_name") or season_team_name
+        team_logo = old.get("team_logo")
+    else:
+        bal = Config.STARTING_BALANCE
+        team_name = season_team_name
+        team_logo = None
+
     n_players = squad_count(guild_id, old_user_id)
 
     with db.cursor() as c:
-        # If new already has a bare users row, drop it so we can re-key old → new
+        # 1) Clear any empty shell for the new user
         c.execute(
             "DELETE FROM users WHERE guild_id=? AND user_id=?",
             (guild_id, new_user_id),
         )
+        c.execute(
+            "DELETE FROM formations WHERE guild_id=? AND user_id=?",
+            (guild_id, new_user_id),
+        )
+        c.execute(
+            "DELETE FROM lineup_overrides WHERE guild_id=? AND user_id=?",
+            (guild_id, new_user_id),
+        )
+        c.execute(
+            "DELETE FROM tactics WHERE guild_id=? AND user_id=?",
+            (guild_id, new_user_id),
+        )
+        c.execute(
+            "DELETE FROM watchlist WHERE guild_id=? AND user_id=?",
+            (guild_id, new_user_id),
+        )
 
+        # 2) INSERT new users row (never UPDATE PK — Turso/SQLite-safe)
+        c.execute(
+            "INSERT INTO users (guild_id, user_id, balance, team_name, team_logo) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (guild_id, new_user_id, bal, team_name, team_logo),
+        )
+
+        # 3) Move child tables (these use user_id as part of PK / column, not users PK rewrite)
         def _move(table: str, col: str = "user_id"):
             c.execute(
                 f"UPDATE {table} SET {col}=? WHERE guild_id=? AND {col}=?",
                 (new_user_id, guild_id, old_user_id),
             )
 
-        # Core economy
-        _move("users")
         _move("squads")
         _move("formations")
         _move("lineup_overrides")
         _move("tactics")
         _move("watchlist")
+        try:
+            _ensure_bench_table()
+            _move("bench")
+        except Exception:
+            pass
 
-        # Auction history (buyer)
         c.execute(
             "UPDATE auction_history SET winner_id=? "
             "WHERE guild_id=? AND winner_id=?",
             (new_user_id, guild_id, old_user_id),
         )
-
-        # Trades
         c.execute(
             "UPDATE trades SET from_user=? WHERE guild_id=? AND from_user=?",
             (new_user_id, guild_id, old_user_id),
@@ -1268,7 +1444,6 @@ def replace_manager(guild_id: int, old_user_id: int, new_user_id: int) -> dict:
             (new_user_id, guild_id, old_user_id),
         )
 
-        # Management / finance card assignments (all days for this guild)
         try:
             c.execute(
                 "UPDATE card_assignments SET user_id=? "
@@ -1276,29 +1451,65 @@ def replace_manager(guild_id: int, old_user_id: int, new_user_id: int) -> dict:
                 (new_user_id, guild_id, old_user_id),
             )
         except Exception:
-            pass  # table may not exist yet
+            pass
 
-        # League tables — every season for this guild
+        # 4) Season seat + fixtures (fetch season ids first — more Turso-friendly)
         try:
-            c.execute(
-                "UPDATE season_teams SET user_id=? WHERE user_id=? AND season_id IN "
-                "(SELECT id FROM seasons WHERE guild_id=?)",
-                (new_user_id, old_user_id, guild_id),
-            )
-            c.execute(
-                "UPDATE fixtures SET home_user=? WHERE home_user=? AND season_id IN "
-                "(SELECT id FROM seasons WHERE guild_id=?)",
-                (new_user_id, old_user_id, guild_id),
-            )
-            c.execute(
-                "UPDATE fixtures SET away_user=? WHERE away_user=? AND season_id IN "
-                "(SELECT id FROM seasons WHERE guild_id=?)",
-                (new_user_id, old_user_id, guild_id),
-            )
+            season_rows = c.execute(
+                "SELECT id FROM seasons WHERE guild_id=?",
+                (guild_id,),
+            ).fetchall()
+            season_ids = [int(r["id"]) for r in season_rows]
+            for sid in season_ids:
+                c.execute(
+                    "UPDATE season_teams SET user_id=? WHERE season_id=? AND user_id=?",
+                    (new_user_id, sid, old_user_id),
+                )
+                # Keep team_name on season_teams if it was only stored there
+                if team_name:
+                    c.execute(
+                        "UPDATE season_teams SET team_name=? "
+                        "WHERE season_id=? AND user_id=?",
+                        (team_name, sid, new_user_id),
+                    )
+                c.execute(
+                    "UPDATE fixtures SET home_user=? WHERE season_id=? AND home_user=?",
+                    (new_user_id, sid, old_user_id),
+                )
+                c.execute(
+                    "UPDATE fixtures SET away_user=? WHERE season_id=? AND away_user=?",
+                    (new_user_id, sid, old_user_id),
+                )
         except Exception as ex:
             print(f"[!] replace_manager season/fixture update: {ex}")
 
-    # In-memory card bans / peek state (this process only)
+        # 5) Delete old users shell (after children moved)
+        c.execute(
+            "DELETE FROM users WHERE guild_id=? AND user_id=?",
+            (guild_id, old_user_id),
+        )
+
+    # 6) Force-write team identity again (belt + suspenders)
+    if team_name:
+        set_team_name(guild_id, new_user_id, team_name)
+    if team_logo:
+        try:
+            set_team_logo(guild_id, new_user_id, team_logo)
+        except Exception:
+            pass
+
+    # Verify
+    final_name = get_team_name(guild_id, new_user_id)
+    if team_name and not final_name:
+        # Last resort direct write
+        with db.cursor() as c:
+            c.execute(
+                "UPDATE users SET team_name=? WHERE guild_id=? AND user_id=?",
+                (team_name[:50], guild_id, new_user_id),
+            )
+        final_name = get_team_name(guild_id, new_user_id)
+
+    # In-memory card bans / peek state
     try:
         import cards as Cards
         bans = Cards._temp_bid_bans.get(guild_id, {})
@@ -1313,7 +1524,152 @@ def replace_manager(guild_id: int, old_user_id: int, new_user_id: int) -> dict:
     return {
         "old_user_id": old_user_id,
         "new_user_id": new_user_id,
-        "team_name": team_name,
-        "balance": bal,
-        "squad_size": n_players,
+        "team_name": final_name or team_name,
+        "balance": get_balance(guild_id, new_user_id),
+        "squad_size": squad_count(guild_id, new_user_id),
+    }
+
+
+# Fine charged to the manager when a player is dumped (always a debit)
+DUMP_FEE = 70_000_000  # −£70M from the manager
+
+
+def dump_player(guild_id: int, user_id: int, player_key: str, fee: int = None) -> dict:
+    """
+    Admin dump:
+      - remove player from manager's squad
+      - FINE them fee (default −£70M)
+      - log as UNSOLD so they can re-enter the auction pool
+
+    fee is always applied as a charge (negative balance change).
+    """
+    guild_id = int(guild_id)
+    user_id = int(user_id)
+    # ALWAYS fine the manager
+    fee = abs(DUMP_FEE if fee is None else int(fee))
+
+    p = P.get(player_key)
+    if not p:
+        results = P.search(str(player_key), limit=1)
+        p = results[0] if results else None
+    if not p:
+        raise RuntimeError("Player not found.")
+
+    key = p["key"]
+    if not owns(guild_id, user_id, key):
+        raise RuntimeError("That manager does not own this player.")
+
+    bal_before = get_balance(guild_id, user_id)
+
+    # Remove from squad
+    with db.cursor() as c:
+        c.execute(
+            "DELETE FROM squads WHERE guild_id=? AND user_id=? AND player_key=?",
+            (guild_id, user_id, key),
+        )
+        try:
+            c.execute(
+                "DELETE FROM lineup_overrides "
+                "WHERE guild_id=? AND user_id=? AND player_key=?",
+                (guild_id, user_id, key),
+            )
+        except Exception:
+            pass
+
+    # FINE the manager (−fee)
+    ensure_user(guild_id, user_id)
+    adjust_balance(guild_id, user_id, -fee)
+
+    bal_after = get_balance(guild_id, user_id)
+
+    try:
+        log_unsold(guild_id, p)
+    except Exception as ex:
+        print(f"[!] dump log_unsold: {ex}")
+
+    try:
+        import auction as A
+        offered = A.OFFERED.get(guild_id, set())
+        offered.discard(key)
+    except Exception:
+        pass
+
+    return {
+        "player": p,
+        "user_id": user_id,
+        "fee": fee,  # amount fined (positive number meaning £ taken)
+        "balance_before": bal_before,
+        "balance": bal_after,
+        "team_name": get_team_name(guild_id, user_id),
+        "squad_size": squad_count(guild_id, user_id),
+    }
+
+
+def take_money(guild_id: int, user_id: int, amount: int) -> dict:
+    """
+    Admin: remove money from a manager.
+    amount is the positive £ to take (e.g. 70_000_000).
+    """
+    guild_id = int(guild_id)
+    user_id = int(user_id)
+    amount = abs(int(amount))
+    if amount <= 0:
+        raise RuntimeError("Amount must be > 0.")
+
+    ensure_user(guild_id, user_id)
+    before = get_balance(guild_id, user_id)
+    adjust_balance(guild_id, user_id, -amount)
+    after = get_balance(guild_id, user_id)
+    return {
+        "user_id": user_id,
+        "taken": amount,
+        "balance_before": before,
+        "balance": after,
+        "team_name": get_team_name(guild_id, user_id),
+    }
+
+
+def force_set_team(guild_id: int, user_id: int, team_name: str, logo_url: str = None) -> dict:
+    """
+    Admin: force club name (+ optional logo) onto a manager.
+    Writes BOTH users.team_name and active season_teams.team_name.
+    """
+    user_id = int(user_id)
+    name = (team_name or "").strip()
+    if not name:
+        raise RuntimeError("Team name is empty.")
+
+    ensure_user(guild_id, user_id)
+    set_team_name(guild_id, user_id, name)
+    if logo_url:
+        set_team_logo(guild_id, user_id, logo_url)
+
+    # Mirror onto active season seat if any
+    try:
+        import league as L
+        s = L.active_season(guild_id)
+        if s:
+            # ensure they're a season team
+            tms = L.teams(s["id"])
+            if not any(int(t["user_id"]) == user_id for t in tms):
+                try:
+                    L.add_team_auto_seed(s["id"], user_id, team_name=name)
+                except Exception:
+                    pass
+            try:
+                L.set_team_name(s["id"], user_id, name)
+            except Exception:
+                with db.cursor() as c:
+                    c.execute(
+                        "UPDATE season_teams SET team_name=? "
+                        "WHERE season_id=? AND user_id=?",
+                        (name, s["id"], user_id),
+                    )
+    except Exception as ex:
+        print(f"[!] force_set_team season mirror: {ex}")
+
+    return {
+        "user_id": user_id,
+        "team_name": get_team_name(guild_id, user_id),
+        "logo": get_team_logo(guild_id, user_id),
     }

@@ -361,8 +361,8 @@ async def squad(interaction: discord.Interaction, user: discord.Member = None):
 
 
 @bot.tree.command(description="View a player's FULL detailed card (all stats, skills, positions).")
-@app_commands.describe(name="Player to look up (from the queue).")
-@app_commands.autocomplete(name=player_autocomplete)
+@app_commands.describe(name="Player to look up (any player, including sold).")
+@app_commands.autocomplete(name=all_player_autocomplete)
 async def player(interaction: discord.Interaction, name: str):
     await interaction.response.defer(thinking=True)
     p = P.get(name)
@@ -650,6 +650,146 @@ async def pool(interaction: discord.Interaction):
     await interaction.followup.send(embed=view.build_embed(), view=view)
 
 
+async def dump_squad_autocomplete(interaction: discord.Interaction, current: str):
+    """Autocomplete: players owned by the `user` option."""
+    target = None
+    try:
+        ns = getattr(interaction, "namespace", None)
+        if ns is not None and getattr(ns, "user", None) is not None:
+            target = ns.user
+    except Exception:
+        target = None
+
+    if target is None:
+        try:
+            data = interaction.data or {}
+            for opt in data.get("options") or []:
+                if opt.get("name") == "user" and opt.get("value"):
+                    mid = int(opt["value"])
+                    target = interaction.guild.get_member(mid)
+                    break
+        except Exception:
+            pass
+
+    if target is None:
+        return []
+
+    squad = E.get_squad(interaction.guild_id, target.id)
+    q = (current or "").lower().strip()
+    choices = []
+    for p in sorted(squad, key=lambda x: -x["ovr"]):
+        if q and q not in p["name"].lower() and q not in p["key"]:
+            continue
+        choices.append(app_commands.Choice(
+            name=f"{p['name']} ({p['position']}/{p['ovr']})"[:100],
+            value=p["key"],
+        ))
+        if len(choices) >= 25:
+            break
+    return choices
+
+
+@bot.tree.command(
+    name="dump",
+    description="[Admin] Release a player: manager FINED £70M, player → UNSOLD.",
+)
+@app_commands.describe(
+    user="Manager (they LOSE £70M)",
+    player="Which of their players to release",
+)
+@app_commands.autocomplete(player=dump_squad_autocomplete)
+async def dump_cmd(
+    interaction: discord.Interaction,
+    user: discord.Member,
+    player: str,
+):
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message(
+            f"{EM.e('x')} Admins only.", ephemeral=True
+        )
+        return
+
+    await interaction.response.defer()
+    try:
+        res = E.dump_player(interaction.guild_id, user.id, player)
+    except Exception as ex:
+        await interaction.followup.send(f"{EM.e('x')} {ex}", ephemeral=True)
+        return
+
+    p = res["player"]
+    team = res.get("team_name") or user.display_name
+    team_tag = EM.club_tag(team)
+    fee = res["fee"]
+
+    e = discord.Embed(
+        title=f"DUMP — {p['name']}",
+        description=(
+            f"{P.flag(p['country'])} **{p['name']}** ({p['position']} · {p['ovr']} OVR)\n"
+            f"**{team_tag}** ({user.mention}) released them.\n\n"
+            f"**Fine: −{E.money(fee)}**\n"
+            f"Before: **{E.money(res.get('balance_before', 0))}** → "
+            f"Now: **{E.money(res['balance'])}**\n"
+            f"Player → **UNSOLD** (can re-auction)."
+        ),
+        color=C.CRIMSON,
+    )
+    face = E.get_face_url(p["key"])
+    if face:
+        e.set_thumbnail(url=face)
+    e.set_footer(text=f"Squad size now {res['squad_size']} · dump FINES the manager")
+    await interaction.followup.send(embed=e)
+
+
+@bot.tree.command(
+    name="take",
+    description="[Admin] Take money from a manager's budget.",
+)
+@app_commands.describe(
+    user="Who to take money from",
+    amount="Amount in millions (e.g. 70 = £70M). Or use full coins if huge.",
+    unit="Millions (default) or full coins",
+)
+@app_commands.choices(unit=[
+    app_commands.Choice(name="Millions (£M) — type 70 for £70M", value="millions"),
+    app_commands.Choice(name="Full coins — type 70000000 for £70M", value="coins"),
+])
+async def take_cmd(
+    interaction: discord.Interaction,
+    user: discord.Member,
+    amount: int,
+    unit: app_commands.Choice[str] = None,
+):
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message(
+            f"{EM.e('x')} Admins only.", ephemeral=True
+        )
+        return
+
+    await interaction.response.defer()
+    unit_val = unit.value if unit else "millions"
+    if amount <= 0:
+        await interaction.followup.send("Amount must be positive.", ephemeral=True)
+        return
+
+    coins = int(amount) * 1_000_000 if unit_val == "millions" else int(amount)
+
+    try:
+        res = E.take_money(interaction.guild_id, user.id, coins)
+    except Exception as ex:
+        await interaction.followup.send(f"{EM.e('x')} {ex}", ephemeral=True)
+        return
+
+    team = res.get("team_name") or user.display_name
+    team_tag = EM.club_tag(team)
+    await interaction.followup.send(
+        f"{EM.e('check')} Took **{E.money(res['taken'])}** from "
+        f"**{team_tag}** ({user.mention}).\n"
+        f"Before: **{E.money(res['balance_before'])}** → "
+        f"Now: **{E.money(res['balance'])}**"
+    )
+
+
+
 # ==========================================================================
 #  Pool browser view
 # ==========================================================================
@@ -926,6 +1066,61 @@ async def bench(interaction: discord.Interaction, user: discord.Member = None):
         await interaction.followup.send(content=f"**{team_name}** — Bench", file=file)
     except Exception as e:
         await interaction.followup.send(f"Error: {e}")
+
+
+@bot.tree.command(
+    name="tosub",
+    description="Put one of YOUR players on the substitutes (won't auto-start).",
+)
+@app_commands.describe(player="Player from your squad to force onto the bench")
+@app_commands.autocomplete(player=my_squad_autocomplete)
+async def tosub(interaction: discord.Interaction, player: str):
+    await interaction.response.defer()
+    try:
+        res = E.set_bench(interaction.guild_id, interaction.user.id, player)
+    except Exception as ex:
+        await interaction.followup.send(f"{EM.e('x')} {ex}", ephemeral=True)
+        return
+    p = res["player"]
+    await interaction.followup.send(
+        f"{EM.e('check')} **{P.flag(p['country'])} {p['name']}** "
+        f"({p['position']}/{p['ovr']}) → **substitutes**.\n"
+        f"They won't auto-start. Use `/unsub` to allow auto XI again. "
+        f"`/team` / `/bench` to view."
+    )
+
+
+@bot.tree.command(
+    name="unsub",
+    description="Allow a benched player back into auto Starting XI.",
+)
+@app_commands.describe(player="Player to remove from forced substitutes")
+@app_commands.autocomplete(player=my_squad_autocomplete)
+async def unsub(interaction: discord.Interaction, player: str):
+    await interaction.response.defer()
+    try:
+        res = E.clear_bench(interaction.guild_id, interaction.user.id, player)
+    except Exception as ex:
+        await interaction.followup.send(f"{EM.e('x')} {ex}", ephemeral=True)
+        return
+    p = res["player"]
+    await interaction.followup.send(
+        f"{EM.e('check')} **{P.flag(p['country'])} {p['name']}** "
+        f"can auto-start again. Use `/setpos` if you want them in a fixed slot."
+    )
+
+
+@bot.tree.command(
+    name="clearsubs",
+    description="Clear ALL forced substitutes (everyone eligible for auto XI again).",
+)
+async def clearsubs(interaction: discord.Interaction):
+    await interaction.response.defer()
+    E.clear_all_bench(interaction.guild_id, interaction.user.id)
+    await interaction.followup.send(
+        f"{EM.e('check')} All forced substitutes cleared. Auto XI uses full squad again."
+    )
+
 
 
 # ==========================================================================
@@ -1973,13 +2168,45 @@ async def replace_manager_cmd(
             f"**To:** {new.mention}\n\n"
             f"Budget: **{E.money(res['balance'])}**\n"
             f"Squad: **{res['squad_size']}** players\n\n"
-            f"Same team name, logo, formation, lineup, tactics, "
-            f"season seat, fixtures, trades, auction history, and cards."
+            f"If the club name still looks wrong, run:\n"
+            f"`/setteam user:{new.mention} team:{team}`"
         ),
         color=C.EMERALD,
     )
-    e.set_footer(text="Old account no longer owns this team in this server.")
     await interaction.followup.send(embed=e)
+
+
+@bot.tree.command(
+    name="setteam",
+    description="[Admin] Force a club name onto a manager (badge + /profile).",
+)
+@app_commands.describe(
+    user="Manager",
+    team="Club name exactly as in the draw list (e.g. Real Madrid)",
+)
+async def setteam_cmd(
+    interaction: discord.Interaction,
+    user: discord.Member,
+    team: str,
+):
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message(
+            f"{EM.e('x')} Admins only.", ephemeral=True
+        )
+        return
+    await interaction.response.defer()
+    try:
+        res = E.force_set_team(interaction.guild_id, user.id, team)
+    except Exception as ex:
+        await interaction.followup.send(f"{EM.e('x')} {ex}", ephemeral=True)
+        return
+
+    tag = EM.club_tag(res.get("team_name") or team)
+    await interaction.followup.send(
+        f"{EM.e('check')} {user.mention} is now **{tag}**.\n"
+        f"`/profile` / website should show it immediately."
+    )
+
 
 
 # ==========================================================================
@@ -3340,6 +3567,66 @@ async def importmatch(interaction: discord.Interaction,
 
     await interaction.followup.send("\n".join(lines))
 
+@bot.tree.command(
+    name="testdrop",
+    description="[Admin] Start a TEST auction — full UI, nothing is saved.",
+)
+@app_commands.describe(
+    name="Player to use (optional). Leave empty for a random high-OVR player.",
+)
+@app_commands.autocomplete(name=all_player_autocomplete)
+async def testdrop(interaction: discord.Interaction, name: str = None):
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message(
+            f"{EM.e('x')} Admins only.", ephemeral=True
+        )
+        return
+
+    if A.is_running(interaction.guild_id):
+        await interaction.response.send_message(
+            "An auction is already running. `/cancel` it first.", ephemeral=True
+        )
+        return
+
+    await interaction.response.defer(ephemeral=True)
+
+    p = None
+    if name:
+        p = P.get(name)
+        if not p:
+            results = P.search(name, limit=1)
+            p = results[0] if results else None
+        if not p:
+            await interaction.followup.send(
+                f"{EM.e('x')} Player not found.", ephemeral=True
+            )
+            return
+    else:
+        # Random high-OVR player (icons + active) — does NOT touch the queue
+        pool = sorted(P.all_players(), key=lambda x: x["ovr"], reverse=True)[:80]
+        if not pool:
+            await interaction.followup.send("No players loaded.", ephemeral=True)
+            return
+        import random as _r
+        p = _r.choice(pool)
+
+    # Do NOT queue_consume, do NOT mark sold — pure dry run
+    a = A.Auction(
+        interaction.guild_id,
+        interaction.channel,
+        p,
+        interaction.user,
+        test_mode=True,
+    )
+    await a.start()
+    await interaction.followup.send(
+        f"🧪 **Test auction started** for **{P.flag(p['country'])} {p['name']}** "
+        f"({p['ovr']} OVR).\n"
+        f"Bids work. **No money, no squad, no history, queue untouched.**",
+        ephemeral=True,
+    )
+
+
 
 # ==========================================================================
 #  HELP
@@ -3439,8 +3726,13 @@ async def help(interaction: discord.Interaction):
         "`/tactics` - view your FL26 tactics"
     ), inline=False)
     e.set_footer(text="Made by mumu_111111")
-    view = AdminHelpView() if is_admin(interaction.user.id) else None
-    await interaction.followup.send(embed=e, view=view)
+
+    # FIX: never pass view=None to followup.send
+    if is_admin(interaction.user.id):
+        await interaction.followup.send(embed=e, view=AdminHelpView())
+    else:
+        await interaction.followup.send(embed=e)
+
 
 
 # --------------------------------------------------------------------------

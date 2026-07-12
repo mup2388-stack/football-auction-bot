@@ -40,28 +40,6 @@ def offered_keys(guild_id: int) -> set:
     return OFFERED.get(guild_id, set())
 
 
-class CustomBidModal(discord.ui.Modal, title="Place a custom bid"):
-    def __init__(self, auction: "Auction"):
-        super().__init__()
-        self.auction = auction
-        nxt = auction.next_min_bid()
-        self.amount = discord.ui.TextInput(
-            label=f"Min bid: £{nxt:,}",
-            placeholder="e.g. 45000000",
-            required=True, max_length=12,
-        )
-        self.add_item(self.amount)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        raw = str(self.amount.value).replace(",", "").replace("£", "").strip()
-        try:
-            bid = int(raw)
-        except ValueError:
-            await interaction.response.send_message("Invalid number.", ephemeral=True)
-            return
-        await self.auction.handle_bid(interaction, bid)
-
-
 class AuctionView(discord.ui.View):
     def __init__(self, auction: "Auction"):
         super().__init__(timeout=None)
@@ -86,12 +64,8 @@ class AuctionView(discord.ui.View):
             interaction, self.auction.current_bid + max(5_000_000, inc)
         )
 
-    @discord.ui.button(label="Custom", style=discord.ButtonStyle.secondary, row=0)
-    async def custom_bid(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.auction.status != "OPEN":
-            await interaction.response.send_message("Auction ended.", ephemeral=True)
-            return
-        await interaction.response.send_modal(CustomBidModal(self.auction))
+    # Custom bid button intentionally removed — managers were jumping prices
+    # with typed amounts and others hit Bid/+ without noticing the new floor.
 
     @discord.ui.button(label="Skip (Admin)", style=discord.ButtonStyle.danger, row=1)
     async def skip_auction(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -120,11 +94,13 @@ class AuctionView(discord.ui.View):
 
 
 class Auction:
-    def __init__(self, guild_id, channel, player, started_by):
+    def __init__(self, guild_id, channel, player, started_by, test_mode: bool = False):
         self.guild_id = guild_id
         self.channel = channel
         self.player = player
         self.started_by = started_by
+        # Test auctions: full UI/bidding, but NO money, squad, history, queue, or card progress
+        self.test_mode = bool(test_mode)
 
         self.start_price = P.start_price(player["ovr"], is_icon=P.is_icon(player))
         self.current_bid = self.start_price
@@ -160,6 +136,27 @@ class Auction:
         if not E.can_afford(self.guild_id, member.id, amount):
             bal = E.get_balance(self.guild_id, member.id)
             return False, f"Can't afford that. Balance: **£{bal:,}**."
+
+        # Squad-needs max bid (/needs) + £10M soft buffer
+        # Keeps managers from blowing budget and leaving required slots empty.
+        try:
+            bid_info = E.auction_max_bid(self.guild_id, member.id)
+            cap = int(bid_info["cap"])
+            floor = int(bid_info["floor"])
+            if amount > cap:
+                if bid_info.get("total_needed", 0) > 0:
+                    return False, (
+                        f"Max bid **{E.money(cap)}** "
+                        f"({E.money(floor)} for squad needs + £10M buffer). "
+                        f"You still need **{bid_info['total_needed']}** more required "
+                        f"slot(s). Check `/needs`."
+                    )
+                return False, (
+                    f"Max bid **{E.money(cap)}** "
+                    f"(budget reserve + £10M buffer). Check `/needs`."
+                )
+        except Exception as ex:
+            print(f"[!] auction_max_bid check failed: {ex}")
 
         # Season + management card + restriction rules
         ok, err = Cards.can_bid(self.guild_id, member.id, self.player, amount)
@@ -248,7 +245,9 @@ class Auction:
         await self._send_card(is_initial=True)
         self._task = asyncio.create_task(self._loop())
         ACTIVE[self.guild_id] = self
-        OFFERED.setdefault(self.guild_id, set()).add(self.player["key"])
+        # Don't mark test players as offered — queue / pool stay clean
+        if not self.test_mode:
+            OFFERED.setdefault(self.guild_id, set()).add(self.player["key"])
 
     async def skip(self, skipped_by=None):
         """
@@ -270,10 +269,10 @@ class Auction:
                 except (asyncio.CancelledError, Exception):
                     pass
 
-            # Same persistence path as a natural no-bid end
-            E.log_unsold(self.guild_id, self.player)
-            offered = OFFERED.get(self.guild_id, set())
-            offered.discard(self.player["key"])
+            if not self.test_mode:
+                E.log_unsold(self.guild_id, self.player)
+                offered = OFFERED.get(self.guild_id, set())
+                offered.discard(self.player["key"])
 
             try:
                 if self.message:
@@ -286,11 +285,14 @@ class Auction:
             mv = P.market_value(p["ovr"], is_icon=P.is_icon(p))
             club_line = EM.club_tag(p.get("club", "") or "")
 
+            title = f"TEST SKIP — {p['name']}" if self.test_mode else f"NOT SOLD — {p['name']}"
+            desc = f"{p.get('position', '')} · {p.get('country', '')} · {club_line}"
+            if self.test_mode:
+                desc = f"**TEST MODE** — nothing saved.\n{desc}"
+
             e = discord.Embed(
-                title=f"NOT SOLD — {p['name']}",
-                description=(
-                    f"{p.get('position', '')} · {p.get('country', '')} · {club_line}"
-                ),
+                title=title,
+                description=desc,
                 color=C.SLATE,
                 timestamp=datetime.now(timezone.utc),
             )
@@ -300,18 +302,22 @@ class Auction:
             e.add_field(name="Market Value", value=E.money(mv), inline=True)
             if skipped_by:
                 e.set_footer(text=f"Skipped by {skipped_by.display_name}")
+            elif self.test_mode:
+                e.set_footer(text="Test auction — no money, no squad, no history")
 
             try:
                 await self.channel.send(embed=e)
             except discord.HTTPException:
                 pass
 
-            try:
-                Cards.on_auction_finished(
-                    self.guild_id, player_key=self.player.get("key")
-                )
-            except Exception as ex:
-                print(f"[!] cards.on_auction_finished failed: {ex}")
+            # Test auctions must NOT advance management round bans / counters
+            if not self.test_mode:
+                try:
+                    Cards.on_auction_finished(
+                        self.guild_id, player_key=self.player.get("key")
+                    )
+                except Exception as ex:
+                    print(f"[!] cards.on_auction_finished failed: {ex}")
 
             ACTIVE.pop(self.guild_id, None)
 
@@ -329,7 +335,13 @@ class Auction:
         buf = await self._build_card_buf()
         file = discord.File(buf, filename="auction.png")
         time_left = max(0, int((self.end_time - datetime.now(timezone.utc)).total_seconds()))
-        content = f"**{self.player['name']}** on the block! {time_left}s remaining"
+        if self.test_mode:
+            content = (
+                f"🧪 **TEST AUCTION** — **{self.player['name']}** on the block! "
+                f"{time_left}s remaining · *no money / no sale*"
+            )
+        else:
+            content = f"**{self.player['name']}** on the block! {time_left}s remaining"
         self.message = await self.channel.send(content=content, file=file, view=self.view)
         self._bids_since_last_card = 0
 
@@ -413,7 +425,10 @@ class Auction:
         price = self.current_bid
 
         task_done = None
-        if winner:
+        if self.test_mode:
+            # Pure dry-run: no balance, squad, history, task progress, or round counters
+            self.status = "TEST_DONE"
+        elif winner:
             self.status = "SOLD"
             E.adjust_balance(self.guild_id, winner.id, -price)
             E.add_player(self.guild_id, winner.id, self.player, price)
@@ -437,7 +452,7 @@ class Auction:
         except (discord.NotFound, discord.HTTPException):
             pass
 
-        # SOLD / NOT SOLD announcement
+        # SOLD / NOT SOLD / TEST announcement
         p = self.player
         sold_emoji = Config.EMOJI_SOLD + " " if Config.EMOJI_SOLD else ""
 
@@ -445,7 +460,38 @@ class Auction:
 
         club_line = EM.club_tag(p.get("club", "") or "")
 
-        if winner:
+        if self.test_mode:
+            mv = P.market_value(p["ovr"], is_icon=P.is_icon(p))
+            if winner:
+                team_name = E.get_team_name(self.guild_id, winner.id) or winner.display_name
+                team_tag = EM.club_tag(team_name)
+                e = discord.Embed(
+                    title=f"🧪 TEST SOLD — {p['name']}",
+                    description=(
+                        f"**Nothing was saved.** No money taken, no squad change.\n"
+                        f"{EM.e('money')} Would have been **{E.money(price)}** → {team_tag}\n"
+                        f"{p.get('position', '')} · {p.get('country', '')} · {club_line}"
+                    ),
+                    color=C.AMBER,
+                    timestamp=datetime.now(timezone.utc),
+                )
+                e.add_field(name="High bidder", value=winner.mention, inline=True)
+            else:
+                e = discord.Embed(
+                    title=f"🧪 TEST END — {p['name']}",
+                    description=(
+                        f"**Nothing was saved.** No unsold log, queue untouched.\n"
+                        f"{p.get('position', '')} · {p.get('country', '')} · {club_line}"
+                    ),
+                    color=C.SLATE,
+                    timestamp=datetime.now(timezone.utc),
+                )
+            if face_url:
+                e.set_thumbnail(url=face_url)
+            e.add_field(name="OVR", value=str(p["ovr"]), inline=True)
+            e.add_field(name="Market Value", value=E.money(mv), inline=True)
+            e.set_footer(text="Test auction complete")
+        elif winner:
             remaining = E.get_balance(self.guild_id, winner.id)
             mv = P.market_value(p["ovr"], is_icon=P.is_icon(p))
             ratio = price / mv if mv else 1
@@ -504,7 +550,7 @@ class Auction:
             pass
 
         # Management task completion ping (same channel as sold)
-        if task_done and winner:
+        if task_done and winner and not self.test_mode:
             try:
                 await self.channel.send(
                     f"{EM.e('check')} {winner.mention} completed their task: "
@@ -515,11 +561,13 @@ class Auction:
 
         # Advance auction round counter (for ban_first_n / temp bans)
         # Pass player_key so delayed peek bans activate AFTER this auction
-        try:
-            Cards.on_auction_finished(
-                self.guild_id, player_key=self.player.get("key")
-            )
-        except Exception as ex:
-            print(f"[!] cards.on_auction_finished failed: {ex}")
+        # Skip entirely for test auctions
+        if not self.test_mode:
+            try:
+                Cards.on_auction_finished(
+                    self.guild_id, player_key=self.player.get("key")
+                )
+            except Exception as ex:
+                print(f"[!] cards.on_auction_finished failed: {ex}")
 
         ACTIVE.pop(self.guild_id, None)

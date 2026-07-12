@@ -7,7 +7,9 @@ Lifecycle (management):
   admin: end day → incomplete goals get £50M penalty
 
 Lifecycle (finance):
-  admin: start → pick → balance applied instantly → admin reveal/lock
+  admin: start → pick → balance applied instantly
+  admin: lock → auto-deal leftover finance cards to every drawn manager
+               who didn't pick, then reveal/end
 
 Auction rules:
   - only managers with a drawn team in the active season can bid
@@ -292,6 +294,50 @@ def lock_day(day_id: int) -> dict:
     return get_day(day_id)
 
 
+def auto_assign_finance_on_lock(guild_id: int, day_id: int) -> dict:
+    """
+    On finance lock: give every drawn season manager who has not picked yet
+    a unique leftover finance card. Balance updates immediately (same as pick).
+
+    Call this WHILE the day is still status='open' (before lock_day), so
+    draw_card(..., auto=True) is allowed even if we also pass auto=True.
+
+    Returns summary: {assigned: [assignment dicts], skipped: int, errors: [...]}
+    """
+    ensure_schema()
+    day = get_day(day_id)
+    if not day or int(day["guild_id"]) != int(guild_id):
+        raise RuntimeError("Finance day not found.")
+    if day.get("kind") != "finance":
+        raise RuntimeError("Not a finance day.")
+    if day.get("status") not in ("open", "locked"):
+        raise RuntimeError(f"Finance day is {day.get('status')}, can't auto-assign.")
+
+    managers = season_manager_ids(guild_id)
+    already = {int(a["user_id"]) for a in list_assignments(day_id)}
+    missing = [uid for uid in managers if int(uid) not in already]
+
+    assigned = []
+    errors = []
+    for uid in missing:
+        try:
+            # auto=True bypasses open-only check if somehow already locked
+            a = draw_card(guild_id, uid, "finance", auto=True)
+            if a:
+                assigned.append(a)
+        except Exception as ex:
+            errors.append({"user_id": int(uid), "error": str(ex)})
+
+    return {
+        "assigned": assigned,
+        "missing_before": len(missing),
+        "assigned_count": len(assigned),
+        "errors": errors,
+        "managers_total": len(managers),
+        "already_picked": len(already),
+    }
+
+
 def end_management_day(guild_id: int, day_id: int) -> list[dict]:
     """
     End management day: incomplete goals → £50M penalty.
@@ -404,6 +450,171 @@ def admin_complete(guild_id: int, user_id: int) -> Optional[dict]:
         return a
     _set_assignment_status(a["id"], "completed")
     return get_assignment(day["id"], user_id)
+
+
+def _resolve_card_def(card_key: str) -> dict:
+    """Look up a card definition, including admin_<uid>_<key> synthetic keys."""
+    if not card_key:
+        return {}
+    if card_key in MANAGEMENT_BY_KEY:
+        return MANAGEMENT_BY_KEY[card_key]
+    if card_key.startswith("admin_"):
+        parts = card_key.split("_", 2)
+        if len(parts) == 3 and parts[2] in MANAGEMENT_BY_KEY:
+            return MANAGEMENT_BY_KEY[parts[2]]
+    return {}
+
+
+def assignment_params(a: dict) -> dict:
+    """
+    Effective restriction/goal params for an assignment.
+    Always: static card defaults, then meta_json overrides (admin /cards set).
+    """
+    card = _resolve_card_def(a.get("card_key") or "")
+    meta = _meta(a)
+    params = {}
+    params.update(card.get("params") or {})
+    params.update(meta.get("params") or {})
+    return params
+
+
+def admin_set_management_card(
+    guild_id: int,
+    user_id: int,
+    *,
+    card_key: str = None,
+    custom_text: str = None,
+    max_night_spend: int = None,
+    max_bid: int = None,
+    ban_first_n: int = None,
+) -> dict:
+    """
+    Admin override: change a manager's management card for the open/locked day.
+
+    Options:
+      - card_key: switch to another predefined card from cards_data
+      - custom_text: override the displayed task text
+      - max_night_spend / max_bid / ban_first_n: override restriction params (£ raw ints)
+
+    Params are stored in meta_json and ALWAYS win over cards_data defaults in can_bid.
+    """
+    ensure_schema()
+    user_id = int(user_id)
+    day = get_open_day(guild_id, "management")
+    if not day:
+        raise RuntimeError("No open/locked management day.")
+
+    a = get_assignment(day["id"], user_id)
+    if not a:
+        raise RuntimeError("That manager has no management card yet.")
+
+    meta_old = _meta(a)
+
+    # Base card definition
+    if card_key:
+        if card_key not in MANAGEMENT_BY_KEY:
+            raise RuntimeError(f"Unknown card key: {card_key}")
+        card = MANAGEMENT_BY_KEY[card_key]
+        new_key = card_key
+        text = custom_text.strip() if custom_text else card["text"]
+        ctype = card.get("type", "goal")
+        # Start from NEW card defaults, then apply any explicit overrides below
+        params = dict(card.get("params") or {})
+        check = card.get("check")
+    else:
+        # Keep current key, edit text/params — preserve prior admin overrides
+        new_key = a["card_key"]
+        card = _resolve_card_def(new_key)
+        text = custom_text.strip() if custom_text else (a.get("card_text") or card.get("text", ""))
+        ctype = meta_old.get("type") or card.get("type") or "restriction"
+        params = {}
+        params.update(card.get("params") or {})
+        params.update(meta_old.get("params") or {})
+        check = meta_old.get("check") if "check" in meta_old else card.get("check")
+
+    if max_night_spend is not None:
+        params["max_night_spend"] = int(max_night_spend)
+        # clear conflicting single-bid-only wording if we're setting night cap
+        if not custom_text:
+            text = (
+                f"You cannot spend more than {E.money(int(max_night_spend))} "
+                f"in total tonight."
+            )
+        if ctype in ("free", "goal", "goal_manual", "power") and not card_key:
+            ctype = "restriction"
+
+    if max_bid is not None:
+        params["max_bid"] = int(max_bid)
+        if not custom_text and max_night_spend is None:
+            text = (
+                f"The maximum you can spend on a single player tonight is "
+                f"{E.money(int(max_bid))}."
+            )
+        if ctype in ("free", "goal", "goal_manual", "power") and not card_key:
+            ctype = "restriction"
+
+    if ban_first_n is not None:
+        params["ban_first_n"] = int(ban_first_n)
+
+    # If custom_text provided with spend overrides, keep custom text as display
+    if custom_text and custom_text.strip():
+        text = custom_text.strip()
+
+    meta = dict(meta_old)
+    meta["type"] = ctype
+    meta["params"] = params  # full effective params — source of truth for can_bid
+    if check is not None:
+        meta["check"] = check
+    elif "check" in meta and card_key:
+        # switching preset may clear check
+        if card_key and card.get("check") is None:
+            meta.pop("check", None)
+    meta["admin_override"] = True
+    # keep progress counters
+    meta["icons_bought"] = int(meta.get("icons_bought") or 0)
+    meta["night_spend"] = int(meta.get("night_spend") or 0)
+    meta["buys"] = int(meta.get("buys") or 0)
+
+    status = "completed" if ctype == "free" else "active"
+
+    with db.cursor() as c:
+        if new_key != a["card_key"]:
+            clash = c.execute(
+                "SELECT user_id FROM card_assignments WHERE day_id=? AND card_key=? AND user_id!=?",
+                (day["id"], new_key, user_id),
+            ).fetchone()
+            if clash:
+                new_key = f"admin_{user_id}_{new_key}"
+
+        c.execute(
+            "UPDATE card_assignments "
+            "SET card_key=?, card_text=?, status=?, meta_json=? "
+            "WHERE id=?",
+            (new_key, text, status, json.dumps(meta), a["id"]),
+        )
+        if status == "completed":
+            c.execute(
+                "UPDATE card_assignments SET completed_at=datetime('now') WHERE id=?",
+                (a["id"],),
+            )
+        else:
+            c.execute(
+                "UPDATE card_assignments SET completed_at=NULL WHERE id=?",
+                (a["id"],),
+            )
+
+    out = get_assignment(day["id"], user_id)
+    if not out:
+        raise RuntimeError("Update failed.")
+
+    # Sanity: effective params must reflect what we just wrote
+    eff = assignment_params(out)
+    if max_night_spend is not None and int(eff.get("max_night_spend") or 0) != int(max_night_spend):
+        raise RuntimeError(
+            f"Save verification failed: expected night cap {max_night_spend}, "
+            f"got {eff.get('max_night_spend')}"
+        )
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -587,9 +798,11 @@ def can_bid(guild_id: int, user_id: int, player: dict, amount: int) -> tuple[boo
         if not a:
             return False, "You need a management card to bid."
 
-        card = MANAGEMENT_BY_KEY.get(a["card_key"], {})
-        params = card.get("params") or _meta(a).get("params") or {}
-        ctype = card.get("type")
+        meta = _meta(a)
+        card = _resolve_card_def(a.get("card_key") or "")
+        # META OVERRIDES WIN — /cards set writes max_night_spend etc. into meta_json.
+        params = assignment_params(a)
+        ctype = meta.get("type") or card.get("type")
         rnd = get_auction_round(guild_id)
 
         # ban first N rounds (0-indexed completed auctions before this one)
@@ -608,7 +821,6 @@ def can_bid(guild_id: int, user_id: int, player: dict, amount: int) -> tuple[boo
         # night spend cap (include this bid)
         max_night = params.get("max_night_spend")
         if max_night is not None:
-            meta = _meta(a)
             spent = int(meta.get("night_spend") or 0)
             if spent + amount > int(max_night):
                 return False, (
