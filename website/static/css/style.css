@@ -1366,6 +1366,235 @@ a.bench-player:hover .bench-face { border-color: var(--gold); }
   font-weight: 600;
 }
 
+.pos-compat {
+  margin-top: var(--sp-8);
+  padding: var(--sp-5);
+}
+
+.pos-compat-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: var(--sp-4);
+}
+
+.pos-compat-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.pos-leg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pos-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2a3040;
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+.pos-dot.natural { background: #39ff14; border-color: rgba(57,255,20,0.5); }
+.pos-dot.familiar { background: #ffc800; border-color: rgba(255,200,0,0.5); }
+.pos-dot.none { background: #2a3040; }
+.pos-dot.primary {
+  background: transparent;
+  box-shadow: 0 0 0 2px #64b4ff;
+}
+
+.pos-pitch-wrap {
+  display: flex;
+  justify-content: center;
+}
+
+.pos-pitch {
+  position: relative;
+  width: min(100%, 720px);
+  aspect-ratio: 1.55 / 1;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  border: 1px solid rgba(180, 220, 200, 0.22);
+  /* pitch stripes */
+  background:
+    linear-gradient(
+      180deg,
+      rgba(12, 48, 28, 1) 0%,
+      rgba(12, 48, 28, 1) 12.5%,
+      rgba(8, 35, 20, 1) 12.5%,
+      rgba(8, 35, 20, 1) 25%,
+      rgba(12, 48, 28, 1) 25%,
+      rgba(12, 48, 28, 1) 37.5%,
+      rgba(8, 35, 20, 1) 37.5%,
+      rgba(8, 35, 20, 1) 50%,
+      rgba(12, 48, 28, 1) 50%,
+      rgba(12, 48, 28, 1) 62.5%,
+      rgba(8, 35, 20, 1) 62.5%,
+      rgba(8, 35, 20, 1) 75%,
+      rgba(12, 48, 28, 1) 75%,
+      rgba(12, 48, 28, 1) 87.5%,
+      rgba(8, 35, 20, 1) 87.5%,
+      rgba(8, 35, 20, 1) 100%
+    );
+  box-shadow: inset 0 0 40px rgba(0,0,0,0.35);
+}
+
+/* pitch markings */
+.pos-pitch::before {
+  content: "";
+  position: absolute;
+  inset: 6%;
+  border: 1px solid rgba(200, 230, 220, 0.35);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.pos-pitch::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  width: 14%;
+  height: 0;
+  padding-bottom: 14%;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(200, 230, 220, 0.35);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.pos-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: clamp(34px, 5.2vw, 44px);
+  height: clamp(34px, 5.2vw, 44px);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body);
+  font-size: clamp(10px, 1.4vw, 12px);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  z-index: 2;
+}
+
+.pos-node.natural {
+  background: #39ff14;
+  color: #052008;
+  border-color: rgba(57, 255, 20, 0.8);
+  box-shadow: 0 0 0 3px rgba(57, 255, 20, 0.18), 0 2px 8px rgba(0,0,0,0.35);
+}
+
+.pos-node.familiar {
+  background: #ffc800;
+  color: #231900;
+  border-color: rgba(255, 200, 0, 0.75);
+}
+
+.pos-node.none {
+  background: #232830;
+  color: #5a6270;
+  border-color: #323846;
+}
+
+.pos-node.is-primary {
+  box-shadow:
+    0 0 0 3px #64b4ff,
+    0 0 16px rgba(100, 180, 255, 0.35),
+    0 2px 8px rgba(0,0,0,0.4);
+}
+
+.pos-code {
+  line-height: 1;
+}
+
+.pos-compat-tags {
+  margin-top: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pos-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.pos-tag-row.muted {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.pos-tag-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  min-width: 72px;
+  color: var(--ink-muted);
+}
+
+.pos-tag-label.natural { color: #6dff55; }
+.pos-tag-label.familiar { color: #ffd24a; }
+
+.pos-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.pos-chip.natural {
+  color: #0a1a08;
+  background: rgba(57, 255, 20, 0.85);
+  border-color: rgba(57, 255, 20, 0.5);
+}
+
+.pos-chip.familiar {
+  color: #231900;
+  background: rgba(255, 200, 0, 0.85);
+  border-color: rgba(255, 200, 0, 0.5);
+}
+
+.pos-empty {
+  color: var(--ink-dim);
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .pos-compat-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .pos-node {
+    width: 30px;
+    height: 30px;
+    font-size: 9px;
+  }
+}
+
+/* player detail two-col → one col on mobile */
+@media (max-width: 768px) {
+  .player-detail-grid { grid-template-columns: 1fr !important; }
+}
+
+
 /* ===========================================================================
    SCORERS PAGE (full) — individual cards, no wrapping glow panel
    =========================================================================== */

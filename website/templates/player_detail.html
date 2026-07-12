@@ -26,7 +26,7 @@
   </div>
 </div>
 
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px;">
+<div class="player-detail-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px;">
 
   <div class="panel glow-card reveal">
     <div class="panel-title">Attributes</div>
@@ -69,4 +69,85 @@
   </div>
 
 </div>
+
+{# ===== POSITION COMPATIBILITY (same idea as Discord player card) ===== #}
+{% set pr = player.get('position_ratings') or {} %}
+{% set reg = player.get('position') or '' %}
+{% set is_gk = (reg == 'GK') %}
+
+<section class="pos-compat panel glow-card reveal">
+  <div class="pos-compat-head">
+    <div class="panel-title" style="margin:0;">Position compatibility</div>
+    <div class="pos-compat-legend">
+      <span class="pos-leg"><i class="pos-dot natural"></i> Natural</span>
+      <span class="pos-leg"><i class="pos-dot familiar"></i> Familiar</span>
+      <span class="pos-leg"><i class="pos-dot none"></i> Unfamiliar</span>
+      <span class="pos-leg"><i class="pos-dot primary"></i> Primary</span>
+    </div>
+  </div>
+
+  <div class="pos-pitch-wrap">
+    <div class="pos-pitch{% if is_gk %} is-gk{% endif %}" aria-label="Position map">
+      {% if is_gk %}
+        {% set layout = [
+          ('GK', 50, 88)
+        ] %}
+      {% else %}
+        {% set layout = [
+          ('LW', 12, 14), ('ST', 50, 10), ('CF', 50, 20), ('RW', 88, 14),
+          ('LM', 12, 36), ('CAM', 50, 36), ('RM', 88, 36),
+          ('CM', 50, 48), ('CDM', 50, 58),
+          ('LWB', 10, 70), ('LB', 10, 78), ('CB', 36, 78),
+          ('CB', 64, 78), ('RB', 90, 78), ('RWB', 90, 70),
+          ('GK', 50, 92)
+        ] %}
+      {% endif %}
+
+      {% for code, x, y in layout %}
+        {% set val = pr.get(code, 0) %}
+        {% if val is none %}{% set val = 0 %}{% endif %}
+        {% if val >= 2 %}
+          {% set cls = 'natural' %}
+        {% elif val == 1 %}
+          {% set cls = 'familiar' %}
+        {% else %}
+          {% set cls = 'none' %}
+        {% endif %}
+        {% if code == reg %}
+          {% set cls = cls ~ ' is-primary' %}
+        {% endif %}
+        <div class="pos-node {{ cls }}"
+             style="left: {{ x }}%; top: {{ y }}%;"
+             title="{{ code }}{% if code == reg %} · Primary{% endif %}{% if val >= 2 %} · Natural{% elif val == 1 %} · Familiar{% else %} · Unfamiliar{% endif %}">
+          <span class="pos-code">{{ code }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="pos-compat-tags">
+    <div class="pos-tag-row">
+      <span class="pos-tag-label natural">Natural</span>
+      {% set ns = namespace(has_nat=false) %}
+      {% for code, val in pr.items()|sort %}
+        {% if val is not none and val >= 2 %}
+          {% set ns.has_nat = true %}
+          <span class="pos-chip natural">{{ code }}</span>
+        {% endif %}
+      {% endfor %}
+      {% if not ns.has_nat %}<span class="pos-empty">—</span>{% endif %}
+    </div>
+    <div class="pos-tag-row">
+      <span class="pos-tag-label familiar">Familiar</span>
+      {% set ns2 = namespace(has_fam=false) %}
+      {% for code, val in pr.items()|sort %}
+        {% if val is not none and val == 1 %}
+          {% set ns2.has_fam = true %}
+          <span class="pos-chip familiar">{{ code }}</span>
+        {% endif %}
+      {% endfor %}
+      {% if not ns2.has_fam %}<span class="pos-empty">—</span>{% endif %}
+    </div>
+  </div>
+</section>
 {% endblock %}

@@ -416,17 +416,32 @@ def squads():
 
 @app.route("/players")
 def players_page():
-    """Browse players from the AUCTION QUEUE (not the full database)."""
+    """Browse draft players: queue + sold in this guild (not the entire FL26 DB)."""
     gid = _guild_id()
 
-    # Only show players that are in the queue
+    # Queue (still available) + anyone currently owned in this guild (sold)
     queued_keys = set(E.queue_list(gid))
-    if queued_keys:
-        all_players = [p for p in P.all_players() if p["key"] in queued_keys]
+    sold_keys = E.sold_player_keys(gid)
+
+    # Full draft pool for this server = queue ∪ sold
+    draft_keys = queued_keys | sold_keys
+
+    if draft_keys:
+        all_players = [p for p in P.all_players() if p["key"] in draft_keys]
     else:
+        # Fallback if nothing queued/sold yet: empty list (or optional full DB)
         all_players = []
 
-    sold = E.sold_player_keys(gid)
+    sold = sold_keys  # set of keys
+
+    # Watchlist (optional — keep if you wired watchlist)
+    cu = _current_user()
+    watched = set()
+    if cu:
+        try:
+            watched = set(E.watch_list(gid, int(cu["id"])))
+        except Exception:
+            watched = set()
 
     # filters from query params
     q = (request.args.get("q") or "").strip()
@@ -441,16 +456,20 @@ def players_page():
     for p in all_players:
         # search filter
         if q:
-            if q.lower() not in p["name"].lower() and q.lower() not in p.get("club", "").lower():
+            if (
+                q.lower() not in p["name"].lower()
+                and q.lower() not in p.get("club", "").lower()
+            ):
                 continue
         # position filter
         if pos and pos != "ALL":
             if p.get("group", "") != pos:
                 continue
-        # status filter
-        if status == "sold" and p["key"] not in sold:
+        # status filter — THIS is what restores sold visibility
+        is_sold = p["key"] in sold
+        if status == "sold" and not is_sold:
             continue
-        if status == "unsold" and p["key"] in sold:
+        if status == "unsold" and is_sold:
             continue
         # rating filter
         if min_ovr and p["ovr"] < min_ovr:
@@ -469,12 +488,18 @@ def players_page():
             except (ValueError, TypeError):
                 continue
 
-        is_sold = p["key"] in sold
         owner_team = None
         if is_sold:
             owner = E.get_player_owner(gid, p["key"])
             if owner:
                 owner_team = owner[1]
+
+        try:
+            value_str = _money(
+                P.market_value(p["ovr"], is_icon=P.is_icon(p))
+            )
+        except Exception:
+            value_str = _money(p.get("value") or 0)
 
         results.append({
             "key": p["key"],
@@ -485,12 +510,13 @@ def players_page():
             "club": p.get("club", ""),
             "country": p.get("country", ""),
             "face_url": _face_url(p["key"]),
-            "value": _money(P.market_value(p["ovr"], is_icon=P.is_icon(p))),
+            "value": value_str,
             "is_sold": is_sold,
             "owner_team": owner_team,
+            "watching": p["key"] in watched,
         })
 
-    # sort by OVR desc
+    # sort: unsold first? or OVR desc — keep classic OVR desc
     filtered_count = len(results)
     results.sort(key=lambda x: x["ovr"], reverse=True)
 
@@ -503,7 +529,6 @@ def players_page():
     start = (page - 1) * per_page
     page_results = results[start:start + per_page]
 
-    # build a filter query string (without page) so pagination links keep filters
     from urllib.parse import urlencode
     filter_params = {}
     for k in ("q", "pos", "status", "min_ovr", "club", "nation", "max_age"):
@@ -512,15 +537,21 @@ def players_page():
             filter_params[k] = v
     filter_qs = urlencode(filter_params)
 
-    # unique nations for the filter dropdown
-    nations = sorted(set(p.get("country", "") for p in all_players if p.get("country")))
+    nations = sorted(
+        set(p.get("country", "") for p in all_players if p.get("country"))
+    )
 
     return render_template(
         "players.html",
         active_page="players",
         players=page_results,
-        q=q, pos=pos, status=status, min_ovr=min_ovr or 0,
-        club=club_filter, nation=nation, max_age=max_age or 0,
+        q=q,
+        pos=pos,
+        status=status,
+        min_ovr=min_ovr or 0,
+        club=club_filter,
+        nation=nation,
+        max_age=max_age or 0,
         nations=nations,
         total_count=len(all_players),
         filtered_count=filtered_count,
@@ -528,8 +559,10 @@ def players_page():
         page=page,
         total_pages=total_pages,
         filter_qs=filter_qs,
+        is_logged_in=bool(cu),
+        watch_count=len(watched),
+        watched_keys=list(watched),
     )
-
 
 @app.route("/squad/<int:user_id>")
 def squad_detail(user_id):
