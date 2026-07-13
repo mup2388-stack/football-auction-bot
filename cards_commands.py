@@ -222,6 +222,7 @@ def setup(bot: commands.Bot):
         app_commands.Choice(name="Start (post pick button)", value="start"),
         app_commands.Choice(name="Lock picks + reveal (remove button)", value="lock"),
         app_commands.Choice(name="End day (£50M penalties)", value="end"),
+        app_commands.Choice(name="Complete all + End (no penalties)", value="force_end"),
         app_commands.Choice(name="Status", value="status"),
     ])
     async def cards_management(
@@ -289,6 +290,34 @@ def setup(bot: commands.Bot):
             await _strip_pick_button(interaction.guild, day, "management", e)
             # Also post a fresh reveal in-channel (in case old message missing)
             await interaction.followup.send(embed=e)
+            return
+
+        if act == "force_end":
+            day = Cards.get_open_day(gid, "management")
+            if not day:
+                await interaction.followup.send(
+                    "No open management day.", ephemeral=True
+                )
+                return
+            # Mark every active assignment as completed (no penalties)
+            assigns = Cards.list_assignments(day["id"])
+            completed = 0
+            for a in assigns:
+                if a["status"] == "active":
+                    Cards._set_assignment_status(a["id"], "completed")
+                    completed += 1
+            # End the day
+            try:
+                Cards.lock_day(day["id"])
+            except Exception:
+                pass
+            Cards.end_management_day(gid, day["id"])
+            await interaction.followup.send(
+                f"{EM.e('check')} **Management day force-ended.**\n"
+                f"Marked **{completed}** active card(s) as completed.\n"
+                f"No penalties applied.\n"
+                f"You can now start a new `/cards management`."
+            )
             return
 
         if act == "end":

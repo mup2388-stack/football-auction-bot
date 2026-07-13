@@ -188,16 +188,59 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 {% else %}
 <script>
-// read-only render
+// read-only render — handles BOTH free lineup AND normal formation
 document.addEventListener('DOMContentLoaded', function () {
   var params = new URLSearchParams(window.location.search);
   var fmt = params.get('formation') || '{{ formation_name }}';
   var lineup = window.__LINEUP__;
   var bench = window.__BENCH__;
-  var slots = FORMATIONS[fmt] || [];
+  var free = window.__FREE_LINEUP__ || {};
+  var hasFree = Object.keys(free).length > 0;
 
   var pitch = document.getElementById('pitch');
   if (!pitch) return;
+
+  // If free lineup exists, render using free positions
+  if (hasFree) {
+    pitch.style.overflow = 'visible';
+    pitch.innerHTML = '';
+    var label = document.getElementById('formation-label');
+    if (label) label.textContent = 'CUSTOM FORMATION';
+    for (var fkey in free) {
+      var fp = ROSTER[fkey];
+      if (!fp) continue;
+      var fpos = free[fkey];
+      var fdiv = document.createElement('div');
+      fdiv.className = 'pitch-player';
+      fdiv.style.left = (fpos.x * 100) + '%';
+      fdiv.style.top = (fpos.y * 100) + '%';
+      fdiv.innerHTML = '<a href="/player/' + fkey + '" class="pitch-link">' +
+        '<img src="' + fp.face_url + '" class="pitch-face" alt="">' +
+        '<span class="pitch-player-name">' + fp.name + '</span>' +
+        '<span class="pitch-player-pos">' + (fpos.pos || fp.pos || '') + '</span></a>';
+      pitch.appendChild(fdiv);
+    }
+    // Bench = everyone not in free positions
+    var benchEl = document.getElementById('bench-list');
+    if (!benchEl) return;
+    benchEl.innerHTML = '';
+    bench.forEach(function (key) {
+      if (free[key]) return; // skip players on pitch
+      var p = ROSTER[key];
+      if (!p) return;
+      var div = document.createElement('a');
+      div.href = '/player/' + key;
+      div.className = 'bench-player';
+      div.innerHTML = '<img src="' + p.face_url + '" class="bench-face" alt="">' +
+        '<span class="bench-name">' + p.name + '</span>' +
+        '<span class="bench-pos">' + (p.pos || '') + '</span>';
+      benchEl.appendChild(div);
+    });
+    return;
+  }
+
+  // Normal formation slot rendering (no free lineup)
+  var slots = FORMATIONS[fmt] || [];
   pitch.innerHTML = '';
   slots.forEach(function (slot, i) {
     var playerKey = lineup[i];
@@ -228,7 +271,7 @@ document.addEventListener('DOMContentLoaded', function () {
     div.className = 'bench-player';
     div.innerHTML = '<img src="' + p.face_url + '" class="bench-face" alt="">' +
       '<span class="bench-name">' + p.name + '</span>' +
-      '<span class="bench-pos">' + p.pos + '</span>';
+      '<span class="bench-pos">' + (p.pos || '') + '</span>';
     benchEl.appendChild(div);
   });
 });
