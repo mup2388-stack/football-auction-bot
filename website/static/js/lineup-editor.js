@@ -8,12 +8,14 @@ const LE = {
   currentFormation: '',
   editMode: false,
   dragging: null,
+  freePositions: null,
 
   init() {
     const params = new URLSearchParams(window.location.search);
     this.currentFormation = params.get('formation') || document.getElementById('formation-select')?.value || '4-3-3';
     this.state = window.__LINEUP__ || {};
     this.bench = window.__BENCH__ || [];
+    this.freePositions = window.__FREE_LINEUP__ || null;
     this.render();
   },
 
@@ -34,9 +36,41 @@ const LE = {
   },
 
   renderPitch() {
-    const slots = FORMATIONS[this.currentFormation] || [];
     const pitch = document.getElementById('pitch');
+    if (!pitch) return;
     pitch.innerHTML = '';
+
+    // If we have free positions saved, render using those instead of formation slots
+    if (this.freePositions && Object.keys(this.freePositions).length > 0) {
+      const label = document.getElementById('formation-label');
+      if (label) label.textContent = this.currentFormation.toUpperCase() + ' STARTING XI';
+      // Allow overflow so player names/positions aren't clipped
+      pitch.style.overflow = 'visible';
+
+      for (const key in this.freePositions) {
+        const p = ROSTER[key];
+        if (!p) continue;
+        const pos = this.freePositions[key];
+        const div = document.createElement('div');
+        div.className = 'pitch-player';
+        div.style.left = (pos.x * 100) + '%';
+        div.style.top = (pos.y * 100) + '%';
+
+        const canDrag = this.editMode;
+        div.innerHTML =
+          '<div class="pitch-link' + (canDrag ? ' draggable' : '') + '" ' +
+          (canDrag ? 'draggable="true" data-player="' + key + '" data-slot="free"' : '') + '>' +
+          '<img src="' + p.face_url + '" class="pitch-face" alt="">' +
+          '<span class="pitch-player-name">' + p.name + '</span>' +
+          '<span class="pitch-player-pos">' + (pos.pos || p.pos || '') + '</span>' +
+          '</div>';
+        pitch.appendChild(div);
+      }
+      return;
+    }
+
+    // Normal formation slot rendering
+    const slots = FORMATIONS[this.currentFormation] || [];
     slots.forEach((slot, i) => {
       const playerKey = this.state[i];
       const div = document.createElement('div');
@@ -48,14 +82,15 @@ const LE = {
       if (playerKey && ROSTER[playerKey]) {
         const p = ROSTER[playerKey];
         const canDrag = this.editMode;
-        div.innerHTML = `
-          <div class="pitch-link${canDrag ? ' draggable' : ''}" ${canDrag ? 'draggable="true"' : ''} data-player="${playerKey}" data-slot="${i}">
-            <img src="${p.face_url}" class="pitch-face" alt="">
-            <span class="pitch-player-name">${p.name}</span>
-            <span class="pitch-player-pos">${slot.pos}</span>
-          </div>`;
+        div.innerHTML =
+          '<div class="pitch-link' + (canDrag ? ' draggable' : '') + '" ' +
+          (canDrag ? 'draggable="true"' : '') + ' data-player="' + playerKey + '" data-slot="' + i + '">' +
+          '<img src="' + p.face_url + '" class="pitch-face" alt="">' +
+          '<span class="pitch-player-name">' + p.name + '</span>' +
+          '<span class="pitch-player-pos">' + slot.pos + '</span>' +
+          '</div>';
       } else {
-        div.innerHTML = `<div class="pitch-empty" data-slot="${i}">${slot.pos}</div>`;
+        div.innerHTML = '<div class="pitch-empty" data-slot="' + i + '">' + slot.pos + '</div>';
       }
       pitch.appendChild(div);
     });
@@ -66,8 +101,16 @@ const LE = {
 
   renderBench() {
     const benchEl = document.getElementById('bench-list');
+    if (!benchEl) return;
     benchEl.innerHTML = '';
-    this.bench.forEach(key => {
+
+    // If free positions exist, filter bench to exclude players on pitch
+    let benchKeys = this.bench;
+    if (this.freePositions && Object.keys(this.freePositions).length > 0) {
+      benchKeys = this.bench.filter(k => !this.freePositions[k]);
+    }
+
+    benchKeys.forEach(key => {
       const p = ROSTER[key];
       if (!p) return;
       const canDrag = this.editMode;
@@ -76,10 +119,10 @@ const LE = {
       if (canDrag) div.draggable = true;
       div.dataset.player = key;
       div.dataset.slot = 'bench';
-      div.innerHTML = `
-        <img src="${p.face_url}" class="bench-face" alt="">
-        <span class="bench-name">${p.name}</span>
-        <span class="bench-pos">${p.pos}</span>`;
+      div.innerHTML =
+        '<img src="' + p.face_url + '" class="bench-face" alt="">' +
+        '<span class="bench-name">' + p.name + '</span>' +
+        '<span class="bench-pos">' + (p.pos || '') + '</span>';
       benchEl.appendChild(div);
     });
   },

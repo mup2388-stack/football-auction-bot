@@ -20,6 +20,7 @@
     {% endfor %}
   </select>
   <button id="btn-edit" class="filter-btn">Edit</button>
+  <button id="btn-free-edit" class="filter-btn" style="background: var(--teal);">Free Edit</button>
   <button id="btn-save" class="filter-btn" style="display:none; background: var(--emerald);">Save</button>
   <button id="btn-cancel" class="filter-clear" style="display:none;">Cancel</button>
 </div>
@@ -75,15 +76,18 @@ window.__LINEUP__ = {{ lineup_json | safe }};
 window.__BENCH__ = {{ bench_json | safe }};
 window.__TACTICS__ = {{ tactics_json | safe }};
 window.__TACTICS_CONFIG__ = {{ tactics_config_json | safe }};
+window.__FREE_LINEUP__ = {{ free_lineup_json | safe }};
 window.__IS_OWNER__ = {{ 'true' if is_owner else 'false' }};
 </script>
 <script src="{{ url_for('static', filename='js/tactics-editor.js') }}"></script>
+<script src="{{ url_for('static', filename='js/free-edit.js') }}"></script>
 {% if is_owner %}
 <script src="{{ url_for('static', filename='js/lineup-editor.js') }}"></script>
 <script>
 // ===== UNIFIED EDIT MODE - one button controls formation + lineup + tactics =====
 function enterEditMode() {
   document.getElementById('btn-edit').style.display = 'none';
+  document.getElementById('btn-free-edit').style.display = 'none';
   document.getElementById('btn-save').style.display = '';
   document.getElementById('btn-cancel').style.display = '';
   var sel = document.getElementById('formation-select');
@@ -91,6 +95,16 @@ function enterEditMode() {
   LE.editMode = true;
   LE.render();
   TC.enterEdit();
+  window.__EDIT_MODE__ = 'slot';
+}
+
+function enterFreeEditMode() {
+  document.getElementById('btn-edit').style.display = 'none';
+  document.getElementById('btn-free-edit').style.display = 'none';
+  document.getElementById('btn-save').style.display = '';
+  document.getElementById('btn-cancel').style.display = '';
+  FE.start();
+  window.__EDIT_MODE__ = 'free';
 }
 
 function exitEditMode() {
@@ -114,6 +128,12 @@ async function saveAll() {
     overrides: overrides,
     tactics: TC.getTactics(),
   };
+
+  // If in free edit mode, include free positions
+  if (window.__EDIT_MODE__ === 'free') {
+    payload.free_lineup = FE.getPositions();
+    payload.overrides = {}; // free edit ignores slot overrides
+  }
 
   try {
     var resp = await fetch('/api/lineup/' + SQUAD_USER_ID, {
@@ -157,9 +177,11 @@ async function saveAll() {
 
 document.addEventListener('DOMContentLoaded', function () {
   var btnEdit = document.getElementById('btn-edit');
+  var btnFreeEdit = document.getElementById('btn-free-edit');
   var btnSave = document.getElementById('btn-save');
   var btnCancel = document.getElementById('btn-cancel');
   if (btnEdit) btnEdit.addEventListener('click', enterEditMode);
+  if (btnFreeEdit) btnFreeEdit.addEventListener('click', enterFreeEditMode);
   if (btnSave) btnSave.addEventListener('click', saveAll);
   if (btnCancel) btnCancel.addEventListener('click', exitEditMode);
 });

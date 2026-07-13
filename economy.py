@@ -265,6 +265,45 @@ def set_formation(guild_id: int, user_id: int, formation: str):
         )
 
 
+def get_free_lineup(guild_id: int, user_id: int) -> dict:
+    """Get custom free-edit positions: {player_key: {x: 0.5, y: 0.3}}"""
+    with db.cursor() as c:
+        row = c.execute(
+            "SELECT free_lineup FROM formations WHERE guild_id=? AND user_id=?",
+            (guild_id, user_id),
+        ).fetchone()
+    if row and row["free_lineup"]:
+        try:
+            import json as _json
+            return _json.loads(row["free_lineup"])
+        except (ValueError, TypeError):
+            pass
+    return {}
+
+
+def set_free_lineup(guild_id: int, user_id: int, positions: dict):
+    """Save custom free-edit positions."""
+    import json as _json
+    ensure_user(guild_id, user_id)
+    with db.cursor() as c:
+        c.execute(
+            "INSERT INTO formations (guild_id, user_id, formation, free_lineup) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(guild_id, user_id) DO UPDATE SET free_lineup=excluded.free_lineup",
+            (guild_id, user_id, get_formation(guild_id, user_id),
+             _json.dumps(positions)),
+        )
+
+
+def clear_free_lineup(guild_id: int, user_id: int):
+    """Clear free-edit positions (revert to formation slots)."""
+    with db.cursor() as c:
+        c.execute(
+            "UPDATE formations SET free_lineup=NULL WHERE guild_id=? AND user_id=?",
+            (guild_id, user_id),
+        )
+
+
 def get_tactics(guild_id: int, user_id: int) -> dict:
     """Get a manager's full tactic settings (normalized with defaults)."""
     import tactics as T

@@ -91,11 +91,11 @@ async def on_ready():
 async def player_autocomplete(interaction: discord.Interaction, current: str):
     """Suggest players from the QUEUE (not yet sold) for /drop."""
     queued = E.queue_list(interaction.guild_id)
-    if not queued:
-        return []
     sold = E.sold_player_keys(interaction.guild_id)
+    unsold = E.unsold_player_keys(interaction.guild_id)
     choices = []
     q_lower = current.lower().strip() if current else ""
+    # First: queued players (not yet auctioned)
     for key in queued:
         if key in sold:
             continue
@@ -109,6 +109,21 @@ async def player_autocomplete(interaction: discord.Interaction, current: str):
             value=p["key"]))
         if len(choices) >= 25:
             break
+    # Then: skipped/unsold players (can re-drop these)
+    if len(choices) < 25:
+        for key in unsold:
+            if key in sold or key in queued:
+                continue
+            p = P.get(key)
+            if not p:
+                continue
+            if q_lower and q_lower not in p["name"].lower():
+                continue
+            choices.append(app_commands.Choice(
+                name=f"[SKIPPED] {p['name']} ({p['ovr']} OVR)",
+                value=p["key"]))
+            if len(choices) >= 25:
+                break
     return choices
 
 
@@ -1600,6 +1615,65 @@ async def unsell(interaction: discord.Interaction, name: str):
         f"Removed from {owner_mention} ({owner_team}).\n"
         f"Refunded **{E.money(sale_price)}**.\n"
         f"Player added back to the queue. Use `/next` to re-auction.")
+
+
+@bot.tree.command(name="sell", description="[Admin] Manually assign a player to a manager for a specific price.")
+@app_commands.describe(
+    user="The manager who gets the player",
+    name="The player to assign",
+    price="Price in millions (e.g. 35 = £35M)",
+)
+@app_commands.autocomplete(name=player_autocomplete)
+async def sell(interaction: discord.Interaction, user: discord.Member, name: str, price: int):
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message(f"{EM.e('x')} Admins only.", ephemeral=True)
+        return
+    await interaction.response.defer()
+    p = P.get(name)
+    if not p:
+        results = P.search(name, limit=1)
+        if not results:
+            await interaction.followup.send(f"{EM.e('x')} Player not found.", ephemeral=True)
+            return
+        p = results[0]
+
+    # Check if already sold to someone else
+    owner = E.get_player_owner(interaction.guild_id, p["key"])
+    if owner and owner[0] != user.id:
+        other = interaction.guild.get_member(owner[0])
+        other_name = other.display_name if other else f"<@{owner[0]}>"
+        await interaction.followup.send(
+            f"{EM.e('x')} {p['name']} is already owned by {other_name}. Use `/unsell` first.",
+            ephemeral=True)
+        return
+
+    price_coins = price * 1_000_000
+    gid = interaction.guild_id
+
+    # Remove from queue if there
+    E.queue_consume(gid, p["key"])
+
+    # Deduct from balance
+    E.ensure_user(gid, user.id)
+    bal = E.get_balance(gid, user.id)
+    if bal < price_coins:
+        await interaction.followup.send(
+            f"{EM.e('x')} {user.display_name} only has {E.money(bal)}. Can't afford {E.money(price_coins)}.",
+            ephemeral=True)
+        return
+    E.adjust_balance(gid, user.id, -price_coins)
+
+    # Add player to squad
+    E.add_player(gid, user.id, p, price_coins)
+
+    # Log as sold
+    E.log_auction(gid, p, user.id, price_coins, status="sold")
+
+    team_name = E.get_team_name(gid, user.id) or user.display_name
+    await interaction.followup.send(
+        f"{EM.e('check')} **{P.flag(p['country'])} {p['name']}** ({p['ovr']} OVR) sold to "
+        f"**{EM.club_tag(team_name)}** ({user.mention}) for **{E.money(price_coins)}**.\n"
+        f"Their budget: **{E.money(E.get_balance(gid, user.id))}**")
 
 
 @bot.tree.command(description="[Admin] Reset ALL managers' budgets, squads, and lineups.")

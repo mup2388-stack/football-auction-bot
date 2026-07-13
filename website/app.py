@@ -647,9 +647,33 @@ def squad_detail(user_id):
         if slot_data and player:
             lineup_state[slot_data["index"]] = player["key"]
 
-    # Bench = squad minus starting XI
+    # Bench = squad minus starting XI minus anyone in free_lineup
     used_keys = set(lineup_state.values())
+    free_lineup = E.get_free_lineup(gid, user_id)
+    free_keys = set(free_lineup.keys())
+    used_keys = used_keys | free_keys
     bench_keys = [p["key"] for p in squad if p["key"] not in used_keys]
+
+    # If free_lineup exists, auto-add any newly won players to the pitch
+    # at their formation slot position so they're visible immediately
+    if free_keys:
+        all_slots = FM.all_slots(formation)
+        for slot_idx_str, slot_player_key in lineup_state.items():
+            slot_idx = int(slot_idx_str)
+            # If this player is in the squad but not in free_lineup, auto-add
+            squad_keys = {p["key"] for p in squad}
+            if slot_player_key in squad_keys and slot_player_key not in free_keys:
+                slot_info = all_slots[slot_idx] if slot_idx < len(all_slots) else None
+                if slot_info:
+                    free_lineup[slot_player_key] = {
+                        "x": slot_info["x"],
+                        "y": slot_info["y"],
+                        "pos": slot_info["pos"],
+                    }
+                    free_keys.add(slot_player_key)
+                    # Remove from bench if they were there
+                    if slot_player_key in bench_keys:
+                        bench_keys.remove(slot_player_key)
 
     groups = {"GK": [], "DEF": [], "MID": [], "FWD": []}
     for p in squad:
@@ -702,6 +726,7 @@ def squad_detail(user_id):
         is_owner=_current_user() and str(_current_user()["id"]) == str(user_id),
         tactics_json=_json.dumps(tactics_data),
         tactics_config_json=_json.dumps(tactics_config),
+        free_lineup_json=_json.dumps(free_lineup),
     )
 
 
@@ -956,6 +981,14 @@ def save_lineup(target_uid):
         tactics_data = data.get("tactics")
         if tactics_data:
             E.save_tactics(gid, target_uid, tactics_data)
+
+        # save free lineup positions if sent
+        free_lineup_data = data.get("free_lineup")
+        if free_lineup_data is not None:
+            if free_lineup_data:
+                E.set_free_lineup(gid, target_uid, free_lineup_data)
+            else:
+                E.clear_free_lineup(gid, target_uid)
 
         # build webhook with lineup + tactics
         team_name = E.get_team_name(gid, target_uid) or "Unknown"

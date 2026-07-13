@@ -6,87 +6,59 @@ Money amounts are full pounds (e.g. 90_000_000 = £90M).
 
 # ---------------------------------------------------------------------------
 # MANAGEMENT — 32 unique cards (today)
-# types: free | goal | goal_manual | restriction | power
-# dm_extra: longer explanation sent in DM after pick
+# Built around the player pool: lots of CBs, STs, a few GKs/wingers,
+# and some big icons (Roberto Baggio, Van Nistelrooy, Eusébio, Bergkamp,
+# Laudrup, Puyol, Piqué, Gerrard, Seedorf, Schweinsteiger, etc.)
 # ---------------------------------------------------------------------------
 
 MANAGEMENT_CARDS = [
     {
-        "key": "power_steal_7",
-        "text": "You can steal one player from anyone for the price they paid. After you use it, you can't bid for the next 7 auctions.",
-        "type": "power",
-        "params": {"power": "steal", "ban_after_use": 7},
-        "dm_extra": (
-            "How it works: tell an admin who you want to steal from and which player. "
-            "You pay the same price they bought him for. Then you sit out 7 auctions. "
-            "Confused? Ping an admin."
-        ),
+        "key": "buy_cb_today",
+        "text": "Buy 1 centre-back today.",
+        "type": "goal",
+        "check": "buy_position_exact",
+        "params": {"position": "CB"},
+        "dm_extra": "Win any CB in auction. Plenty dropping today (Van Dijk, Puyol, Piqué, Varane, Bonucci, Stam, etc). Auto-completes.",
     },
     {
-        "key": "power_swap_half",
-        "text": (
-            "You can swap one of your players (80+ OVR) with someone else's player. "
-            "You pay them half of what they paid for that player + give them your player."
-        ),
-        "type": "power",
-        "params": {"power": "swap", "min_give_ovr": 80},
-        "dm_extra": (
-            "Example: you give Vini (must be 80+ OVR) and want their Mbappé (bought for £150M). "
-            "You pay them £75M + Vini, they get Vini + £75M, you get Mbappé. "
-            "Confused? Contact an admin."
-        ),
+        "key": "buy_st_today",
+        "text": "Buy 1 striker (ST/CF) today.",
+        "type": "goal",
+        "check": "buy_group",
+        "params": {"group": "FWD"},
+        "dm_extra": "Win any forward. Loads available (Havertz, Osimhen, Lewandowski, Toney, Schick, etc). Auto-completes.",
     },
     {
-        "key": "buy_three_players",
-        "text": "Buy at least 3 players tonight.",
+        "key": "buy_two_players",
+        "text": "Buy at least 2 players today.",
         "type": "goal",
         "check": "buy_count",
-        "params": {"count": 3},
-        "dm_extra": "Win 3 auctions tonight. Auto-completes when you hit 3. Stuck? Ask an admin.",
+        "params": {"count": 2},
+        "dm_extra": "Win 2 auctions today. Auto-completes when you hit 2.",
     },
     {
-        "key": "max_per_player_90m",
-        "text": "You can't spend more than £90M on a single player.",
-        "type": "restriction",
-        "params": {"max_bid": 90_000_000},
-        "dm_extra": "Any bid over £90M on one player is blocked. Confused? Contact an admin.",
+        "key": "buy_gk_today",
+        "text": "Buy 1 goalkeeper today.",
+        "type": "goal",
+        "check": "buy_group",
+        "params": {"group": "GK"},
+        "dm_extra": "Win a GK. Options today: Robert Sánchez, Matz Sels, Ederson, Brice Samba, ter Stegen, Justin Bijlow, Cássio Ramos. Auto-completes.",
     },
     {
-        "key": "buy_ucl_winner",
-        "text": "Buy 1 UCL winner.",
-        "type": "goal_manual",
+        "key": "buy_icon_today",
+        "text": "Buy 1 icon/legend today.",
+        "type": "goal",
+        "check": "buy_icon",
         "params": {},
-        "dm_extra": (
-            "Win an auction for a player who has won the UEFA Champions League (player, not club only). "
-            "Unsure if a player counts? Ask an admin."
-        ),
+        "dm_extra": "Win any ICON player. Big ones today: Baggio (91), Eusébio (92), Bergkamp (93), Van Nistelrooy (90), Laudrup (92), Puyol (87), Piqué (90), Gerrard (88). Auto-completes.",
     },
     {
-        "key": "buy_wc_winner",
-        "text": "Buy 1 World Cup winner.",
-        "type": "goal_manual",
-        "params": {},
-        "dm_extra": (
-            "Buy a player who has won the FIFA World Cup. "
-            "Not sure? Contact an admin."
-        ),
-    },
-    {
-        "key": "buy_multi_league_titles",
-        "text": "Buy a player who has won multiple league titles.",
-        "type": "goal_manual",
-        "params": {},
-        "dm_extra": (
-            "The player must have won 2+ top-flight league titles in their career. "
-            "Admin marks complete. Edge cases → ask an admin."
-        ),
-    },
-    {
-        "key": "spend_cap_250m_night",
-        "text": "You can't spend more than £250M in total tonight.",
-        "type": "restriction",
-        "params": {"max_night_spend": 250_000_000},
-        "dm_extra": "All your winning bids tonight add up. Over £250M total is blocked. Questions? Admin.",
+        "key": "buy_84_plus",
+        "text": "Buy a player rated 84 or higher.",
+        "type": "goal",
+        "check": "buy_ovr_min",
+        "params": {"ovr": 84},
+        "dm_extra": "Win any 84+ OVR player. Plenty today. Auto-completes.",
     },
     {
         "key": "buy_brazilian",
@@ -94,155 +66,7 @@ MANAGEMENT_CARDS = [
         "type": "goal",
         "check": "buy_country",
         "params": {"country": "Brazil"},
-        "dm_extra": "Win any Brazilian nationality player. Auto-completes on purchase. Unsure? Admin.",
-    },
-    {
-        "key": "buy_icon",
-        "text": "Buy 1 icon.",
-        "type": "goal",
-        "check": "buy_icon",
-        "params": {},
-        "dm_extra": "Win an ICON / legend card. Auto-completes. Confused? Contact an admin.",
-    },
-    {
-        "key": "buy_german",
-        "text": "Buy 1 German player.",
-        "type": "goal",
-        "check": "buy_country",
-        "params": {"country": "Germany"},
-        "dm_extra": "Win a player with nationality Germany. Auto-completes. Ask admin if unsure.",
-    },
-    {
-        "key": "no_task_a",
-        "text": "No task. Bid freely.",
-        "type": "free",
-        "params": {},
-        "dm_extra": "Free pass. No goal, no fine for this card. Just play.",
-    },
-    {
-        "key": "no_task_b",
-        "text": "No task. Bid freely.",
-        "type": "free",
-        "params": {},
-        "dm_extra": "Free pass. No goal, no fine for this card. Just play.",
-    },
-    {
-        "key": "no_task_c",
-        "text": "No task. Bid freely.",
-        "type": "free",
-        "params": {},
-        "dm_extra": "Free pass. No goal, no fine for this card. Just play.",
-    },
-    {
-        "key": "no_task_d",
-        "text": "No task. Bid freely.",
-        "type": "free",
-        "params": {},
-        "dm_extra": "Free pass. No goal, no fine for this card. Just play.",
-    },
-    {
-        "key": "no_task_e",
-        "text": "No task. Bid freely.",
-        "type": "free",
-        "params": {},
-        "dm_extra": "Free pass. No goal, no fine for this card. Just play.",
-    },
-    {
-        "key": "no_bid_first_3_a",
-        "text": "You can't bid for the first 3 rounds tonight.",
-        "type": "restriction",
-        "params": {"ban_first_n": 3},
-        "dm_extra": (
-            "Rounds = finished auctions after management cards started (sold/skip/unsold). "
-            "You can bid from the 4th auction onward. Questions? Admin."
-        ),
-    },
-    {
-        "key": "buy_5m_ig",
-        "text": "Buy a player with more than 5M Instagram followers.",
-        "type": "goal_manual",
-        "params": {},
-        "dm_extra": (
-            "The player's real IG must be over 5M followers at the time of purchase. "
-            "Not sure? Contact an admin."
-        ),
-    },
-    {
-        "key": "buy_golden_boot",
-        "text": "Buy a player who has won the Golden Boot for any league.",
-        "type": "goal_manual",
-        "params": {},
-        "dm_extra": (
-            "Top scorer award in a recognized top league (PL, La Liga, Serie A, etc.) counts. "
-            "Admin marks complete. Grey area? Ask an admin."
-        ),
-    },
-    {
-        "key": "buy_laliga",
-        "text": "Buy a player from La Liga.",
-        "type": "goal",
-        "check": "buy_la_liga",
-        "params": {},
-        "dm_extra": (
-            "Win a player whose club is a La Liga side (Real Madrid, Barcelona, Atlético, etc.). "
-            "Icons don't count as La Liga. Auto-completes when possible. Unsure? Admin."
-        ),
-    },
-    {
-        "key": "buy_current_player",
-        "text": "Buy 1 current player (not an icon).",
-        "type": "goal",
-        "check": "buy_active",
-        "params": {},
-        "dm_extra": "Win any non-ICON player. Auto-completes. Icons do not count. Ask admin if confused.",
-    },
-    {
-        "key": "no_bid_first_3_b",
-        "text": "You can't bid for the first 3 rounds tonight.",
-        "type": "restriction",
-        "params": {"ban_first_n": 3},
-        "dm_extra": (
-            "Sit out the first 3 finished auctions, then bid normal. "
-            "Contact an admin if something feels wrong."
-        ),
-    },
-    {
-        "key": "buy_copa_america",
-        "text": "Buy 1 Copa América winner.",
-        "type": "goal_manual",
-        "params": {},
-        "dm_extra": (
-            "Player must have won the Copa América."
-            "Not sure? Contact an admin."
-        ),
-    },
-    {
-        "key": "buy_wc_semis_now",
-        "text": "Buy a player who is currently in the World Cup semis.",
-        "type": "goal_manual",
-        "params": {},
-        "dm_extra": (
-            "Based on the real-world World Cup right now (semi-finalists' squads). "
-            "Admin decides who counts. If unsure, message an admin before you bid."
-        ),
-    },
-    {
-        "key": "buy_100_goals",
-        "text": "Sign a player who has more than 100 career goals.",
-        "type": "goal_manual",
-        "params": {},
-        "dm_extra": (
-            "100+ senior career goals (club + country accepted). "
-            "Admin marks complete. Edge cases → contact an admin."
-        ),
-    },
-    {
-        "key": "buy_midfielder",
-        "text": "Sign 1 midfielder.",
-        "type": "goal",
-        "check": "buy_group",
-        "params": {"group": "MID"},
-        "dm_extra": "Win a MID-group player (CM/CDM/CAM/LM/RM). Auto-completes. Ask admin if confused.",
+        "dm_extra": "Win any Brazilian. Options: Vinícius, Ederson, Casemiro, Cássio Ramos, etc. Auto-completes.",
     },
     {
         "key": "buy_under_50m",
@@ -250,53 +74,188 @@ MANAGEMENT_CARDS = [
         "type": "goal",
         "check": "buy_price_under",
         "params": {"max_price": 50_000_000},
-        "dm_extra": (
-            "Your winning bid must be under £50M. Auto-completes on a cheap win. "
-            "Questions? Contact an admin."
-        ),
+        "dm_extra": "Your winning bid must be under £50M. Grab a bargain. Auto-completes.",
     },
     {
-        "key": "no_task_f",
-        "text": "No task. Bid freely.",
-        "type": "free",
-        "params": {},
-        "dm_extra": "Free pass. No goal, no fine for this card. Just play.",
+        "key": "buy_lb_or_rb",
+        "text": "Buy a full-back (LB or RB).",
+        "type": "goal",
+        "check": "buy_position_exact",
+        "params": {"position_any": ["LB", "RB"]},
+        "dm_extra": "Win any LB or RB. Options today: Joakim Mæhle, Pedro Porro, Tino Livramento, Lewis-Skelly, Cucurella, Trippier, Nuno Mendes, Guerreiro. Auto-completes.",
+    },
+    {
+        "key": "buy_cdm_or_cm",
+        "text": "Buy a central midfielder (CDM or CM).",
+        "type": "goal",
+        "check": "buy_position_exact",
+        "params": {"position_any": ["CDM", "CM"]},
+        "dm_extra": "Win any CDM or CM. Options: Tonali, Kanté, Palacios, Kovačić, Baleba, Stiller, Fabián Ruiz, Schweinsteiger, Gerrard, Seedorf, Thiago. Auto-completes.",
+    },
+    {
+        "key": "buy_cam",
+        "text": "Buy an attacking midfielder (CAM).",
+        "type": "goal",
+        "check": "buy_position_exact",
+        "params": {"position": "CAM"},
+        "dm_extra": "Win any CAM. Options: Bruno Fernandes, Reus, Szoboszlai, Asensio, Golovin, Iwobi, Matheus Cunha, Laudrup. Auto-completes.",
+    },
+    {
+        "key": "buy_winger",
+        "text": "Buy a winger (LW/RW/LWF/RWF).",
+        "type": "goal",
+        "check": "buy_position_exact",
+        "params": {"position_any": ["LW", "RW", "LWF", "RWF", "LM", "RM"]},
+        "dm_extra": "Win any winger. Options: Trossard, Doku, Gordon, Vinícius, Sané, Lamine Yamal, Pépé, Semenyo, Dimarco. Auto-completes.",
+    },
+    {
+        "key": "buy_spanish",
+        "text": "Buy 1 Spanish player.",
+        "type": "goal",
+        "check": "buy_country",
+        "params": {"country": "Spain"},
+        "dm_extra": "Win any Spanish player. Options: Lamine Yamal, Pedri (not today), Fabián Ruiz, Asensio, Porro, Griezmann (French), Piqué, Puyol. Auto-completes.",
+    },
+    {
+        "key": "buy_french",
+        "text": "Buy 1 French player.",
+        "type": "goal",
+        "check": "buy_country",
+        "params": {"country": "France"},
+        "dm_extra": "Win any French player. Options: Varane, Trossard, Kanté (not FR), Thuram, Griezmann, Lucas Hernandez, Saliba, Doku (BE)... check nationality. Auto-completes.",
     },
     {
         "key": "buy_under_25",
-        "text": "Buy a player under 25 years old (icons ignored for age).",
+        "text": "Buy a player under 25 years old.",
         "type": "goal",
         "check": "buy_age_under",
         "params": {"max_age": 24, "ignore_icons": True},
-        "dm_extra": (
-            "Age under 25 (24 or younger). Icons don't count for this goal. "
-            "Auto-completes when age data matches. Unsure? Admin."
-        ),
+        "dm_extra": "Age 24 or younger (icons don't count). Options: Lamine Yamal, Lewis-Skelly, Huijsen, Scalvini, Mosquera. Auto-completes.",
     },
     {
-        "key": "buy_86_plus",
-        "text": "Buy a 86+ rated player.",
+        "key": "buy_defender",
+        "text": "Buy 1 defender.",
         "type": "goal",
-        "check": "buy_ovr_min",
-        "params": {"ovr": 86},
-        "dm_extra": "Win any player with 86 OVR or higher. Auto-completes. Ask admin if confused.",
+        "check": "buy_group",
+        "params": {"group": "DEF"},
+        "dm_extra": "Win any defender (CB/LB/RB). Tons today: Van Dijk, Varane, Puyol, Piqué, Bonucci, Stam, Campbell, Sol, Tah, Araújo, etc. Auto-completes.",
     },
     {
-        "key": "max_per_player_110m",
-        "text": "The max you can spend on a player is £110M.",
-        "type": "restriction",
-        "params": {"max_bid": 110_000_000},
-        "dm_extra": "Bids over £110M on one player are blocked. Contact an admin if stuck.",
+        "key": "no_task_a",
+        "text": "No task. Bid freely.",
+        "type": "free",
+        "params": {},
+        "dm_extra": "Free pass. No goal, no fine. Just play.",
     },
     {
-        "key": "min_ovr_84",
-        "text": "You can't buy a player below 84 rated.",
+        "key": "no_task_b",
+        "text": "No task. Bid freely.",
+        "type": "free",
+        "params": {},
+        "dm_extra": "Free pass. No goal, no fine. Just play.",
+    },
+    {
+        "key": "no_task_c",
+        "text": "No task. Bid freely.",
+        "type": "free",
+        "params": {},
+        "dm_extra": "Free pass. No goal, no fine. Just play.",
+    },
+    {
+        "key": "no_task_d",
+        "text": "No task. Bid freely.",
+        "type": "free",
+        "params": {},
+        "dm_extra": "Free pass. No goal, no fine. Just play.",
+    },
+    {
+        "key": "no_task_e",
+        "text": "No task. Bid freely.",
+        "type": "free",
+        "params": {},
+        "dm_extra": "Free pass. No goal, no fine. Just play.",
+    },
+    {
+        "key": "max_bid_100m",
+        "text": "You can't spend more than £100M on a single player.",
         "type": "restriction",
-        "params": {"min_ovr": 84},
-        "dm_extra": (
-            "You can only bid on players with 84+ OVR. Lower rated = blocked. "
-            "Confused? Contact an admin."
-        ),
+        "params": {"max_bid": 100_000_000},
+        "dm_extra": "Bids over £100M on one player are blocked. Still plenty of options. Ask admin if confused.",
+    },
+    {
+        "key": "spend_cap_300m",
+        "text": "You can't spend more than £300M in total today.",
+        "type": "restriction",
+        "params": {"max_night_spend": 300_000_000},
+        "dm_extra": "All your winning bids today add up. Over £300M total is blocked.",
+    },
+    {
+        "key": "no_bid_first_2",
+        "text": "You can't bid for the first 2 auctions today.",
+        "type": "restriction",
+        "params": {"ban_first_n": 2},
+        "dm_extra": "Sit out the first 2 finished auctions, then bid normal.",
+    },
+    {
+        "key": "min_ovr_82",
+        "text": "You can't buy a player below 82 rated.",
+        "type": "restriction",
+        "params": {"min_ovr": 82},
+        "dm_extra": "You can only bid on players with 82+ OVR. Lower rated = blocked. Most of today's pool qualifies.",
+    },
+    {
+        "key": "buy_laliga_player",
+        "text": "Buy a player currently at a La Liga club.",
+        "type": "goal",
+        "check": "buy_la_liga",
+        "params": {},
+        "dm_extra": "Win a player whose current club is a La Liga side. Icons don't count as La Liga. Auto-completes when possible.",
+    },
+    {
+        "key": "power_steal_5",
+        "text": "You can steal one player from anyone for the price they paid. After using it, you can't bid for the next 5 auctions.",
+        "type": "power",
+        "params": {"power": "steal", "ban_after_use": 5},
+        "dm_extra": "Tell an admin who you want to steal and from whom. You pay the same price they bought him for. Then sit out 5 auctions.",
+    },
+    {
+        "key": "power_swap_half",
+        "text": "Swap one of your players (80+ OVR) with someone else's. You pay them half of what they paid + give your player.",
+        "type": "power",
+        "params": {"power": "swap", "min_give_ovr": 80},
+        "dm_extra": "Give an 80+ player + half their purchase price, get their player in return. Contact admin to execute.",
+    },
+    {
+        "key": "buy_italian",
+        "text": "Buy 1 Italian player.",
+        "type": "goal",
+        "check": "buy_country",
+        "params": {"country": "Italy"},
+        "dm_extra": "Win any Italian. Options: Scalvini, Tonali, Retegui, Dimarco, Bonucci. Auto-completes.",
+    },
+    {
+        "key": "buy_dutch",
+        "text": "Buy 1 Dutch player.",
+        "type": "goal",
+        "check": "buy_country",
+        "params": {"country": "Netherlands"},
+        "dm_extra": "Win any Dutch player. Options: Van Dijk, Bergkamp, Seedorf, Stam, Aké, ter Stegen (not NL), Depay (not today). Check nationality. Auto-completes.",
+    },
+    {
+        "key": "buy_portuguese",
+        "text": "Buy 1 Portuguese player.",
+        "type": "goal",
+        "check": "buy_country",
+        "params": {"country": "Portugal"},
+        "dm_extra": "Win any Portuguese player. Options: Samu Aghehowa, Pépé, Fabián Ruiz (not PT), Leão (not today). Check nationality. Auto-completes.",
+    },
+    {
+        "key": "buy_german",
+        "text": "Buy 1 German player.",
+        "type": "goal",
+        "check": "buy_country",
+        "params": {"country": "Germany"},
+        "dm_extra": "Win any German player. Options: Havertz, Sané, ter Stegen, Schweinsteiger, Tah, Hummels, Guerreiro. Auto-completes.",
     },
 ]
 

@@ -482,7 +482,7 @@ else:
                     results.append(None)
                 return results
             try:
-                cur.execute_batch = _execute_batch  # type: ignore[attr-defined]
+                cur.execute_batch = _execute_batch
             except (AttributeError, TypeError):
                 pass
         try:
@@ -616,6 +616,7 @@ def init_db():
     _add_column("auction_history", "status", "TEXT NOT NULL DEFAULT 'sold'")
     _add_column("guild_state", "trades_enabled", "INTEGER NOT NULL DEFAULT 1")
     _add_column("player_match_stats", "season_id", "INTEGER")
+    _add_column("formations", "free_lineup", "TEXT")
 
     with cursor() as c:
         c.execute(

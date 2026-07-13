@@ -2545,3 +2545,87 @@ img.loaded, img[src$=".png"]:not([src*="/face/"]):not([src*="/logo/"]) {
 .watch-toggle.watching { color: var(--crimson); }
 .watch-toggle.watching:hover { color: var(--ink-dim); }
 .player-card-wrap { position: relative; }
+
+/* ===========================================================================
+   FREE EDIT MODE - PES/FL26 style free positioning
+   Uses the same pitch-player CSS classes. Only adds grab cursor on hover.
+   =========================================================================== */
+.pitch-player[data-fe="1"],
+.bench-player[data-fe="1"] {
+  cursor: grab;
+  touch-action: none;
+}
+.pitch-player[data-fe="1"]:active {
+  cursor: grabbing;
+}
+
+/* ===========================================================================
+   FREE EDIT - Position Picker + Zones
+   =========================================================================== */
+.pitch-player[data-fe="1"],
+.bench-player[data-fe="1"] {
+  cursor: grab;
+  touch-action: none;
+}
+.pitch-player[data-fe="1"]:active {
+  cursor: grabbing;
+}
+
+/* Position picker popup */
+.fe-pos-picker {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 30px));
+  background: var(--panel);
+  border: 1px solid var(--gold-dim);
+  border-radius: 10px;
+  padding: 10px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+  min-width: 80px;
+}
+.fe-picker-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gold);
+  text-align: center;
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+.fe-picker-btn {
+  padding: 6px 16px;
+  background: var(--panel-hi);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  font-family: inherit;
+}
+.fe-picker-btn:hover {
+  background: var(--gold);
+  color: var(--bg);
+  border-color: var(--gold);
+}
+.fe-picker-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--ink-dim);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 50%;
+}
+.fe-picker-close:hover {
+  color: var(--crimson);
+  background: var(--panel-hi);
+}
