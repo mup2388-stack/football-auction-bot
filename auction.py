@@ -137,19 +137,23 @@ class Auction:
             bal = E.get_balance(self.guild_id, member.id)
             return False, f"Can't afford that. Balance: **£{bal:,}**."
 
-        # Squad-needs max bid (/needs) + £10M soft buffer
-        # Keeps managers from blowing budget and leaving required slots empty.
+        # Squad-needs max bid - now position-aware
         try:
-            bid_info = E.auction_max_bid(self.guild_id, member.id)
+            player_group = self.player.get("group", "")
+            bid_info = E.auction_max_bid(self.guild_id, member.id, player_group=player_group)
             cap = int(bid_info["cap"])
             floor = int(bid_info["floor"])
             if amount > cap:
                 if bid_info.get("total_needed", 0) > 0:
+                    pos_note = ""
+                    if bid_info.get("position_needed"):
+                        pos_note = " You're bidding on a position you need."
+                    elif bid_info.get("position_needed") is False:
+                        pos_note = " You already have enough of this position."
                     return False, (
                         f"Max bid **{E.money(cap)}** "
-                        f"({E.money(floor)} for squad needs + £10M buffer). "
-                        f"You still need **{bid_info['total_needed']}** more required "
-                        f"slot(s). Check `/needs`."
+                        f"({E.money(floor)} reserve + £10M buffer). "
+                        f"Still need **{bid_info['total_needed']}** slot(s).{pos_note}"
                     )
                 return False, (
                     f"Max bid **{E.money(cap)}** "

@@ -1618,6 +1618,61 @@ async def resetall(interaction: discord.Interaction):
         f"All players are back in the pool.")
 
 
+@bot.tree.command(description="[Admin] Show managers with 0 players (inactive).")
+async def inactive(interaction: discord.Interaction):
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message(f"{EM.e('x')} Admins only.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    gid = interaction.guild_id
+
+    # Get all registered users
+    with db.cursor() as c:
+        users = c.execute(
+            "SELECT user_id, team_name FROM users WHERE guild_id=?",
+            (gid,),
+        ).fetchall()
+
+    if not users:
+        await interaction.followup.send("No managers registered yet.", ephemeral=True)
+        return
+
+    # Check squad count for each
+    empty = []
+    active_count = 0
+    for u in users:
+        uid = u["user_id"]
+        count = E.squad_count(gid, uid)
+        if count == 0:
+            team_name = u["team_name"] or "No team"
+            member = interaction.guild.get_member(uid)
+            mname = member.display_name if member else f"<@{uid}>"
+            empty.append(f"{member.mention if member else f'<@{uid}>'} - {EM.club_tag(team_name)}")
+        else:
+            active_count += 1
+
+    if not empty:
+        await interaction.followup.send(
+            f"{EM.e('check')} **Everyone is active!** All {len(users)} managers have at least 1 player.",
+            ephemeral=True)
+        return
+
+    lines = [
+        f"**{len(empty)} inactive manager(s)** (0 players)",
+        f"**{active_count} active** / **{len(users)} total**",
+        "",
+        *empty,
+        "",
+        f"Use `/replace old:@them new:@newperson` to swap them out.",
+    ]
+    e = discord.Embed(
+        title="Inactive Managers",
+        description="\n".join(lines),
+        color=C.CRIMSON,
+    )
+    await interaction.followup.send(embed=e, ephemeral=True)
+
+
 @bot.tree.command(description="[Admin] Cancel the auction currently running.")
 async def cancel(interaction: discord.Interaction):
     await interaction.response.defer()

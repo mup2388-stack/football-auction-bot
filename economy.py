@@ -809,8 +809,13 @@ def get_player_owner(guild_id: int, player_key: str):
 # Budget tracking / needs analysis
 # --------------------------------------------------------------------------
 
+# Full squad (ideal): 2 GK, 5 DEF, 5 MID, 3 FWD = 15
 REQUIREMENTS = {"GK": 2, "DEF": 5, "MID": 5, "FWD": 3}
 MIN_SQUAD_SIZE = sum(REQUIREMENTS.values())  # 15
+
+# Minimum viable squad (yellow zone): 2 GK, 4 DEF, 4 MID, 3 FWD = 13
+# Once a manager hits these minimums, they can bid freely (no slot reservation)
+MIN_VIABLE = {"GK": 1, "DEF": 4, "MID": 4, "FWD": 3}
 
 # Matches OVR < 75 floor in players.base_price
 CHEAPEST_PLAYER_VALUE = 15_000_000  # £15M
@@ -821,21 +826,44 @@ def get_needs(guild_id: int, user_id: int):
     Analyze what a manager still needs.
     Returns dict with counts, needed, budget, min_cost, max_bid, complete, squad_size.
 
-    max_bid = budget left after reserving cheapest fill for remaining required slots.
+    Uses a two-tier system:
+      - Yellow zone: manager hasn't hit MIN_VIABLE yet (2 GK, 4 DEF, 4 MID, 3 FWD)
+        -> reserve budget for cheapest fills so they can complete a viable squad
+      - Free zone: manager HAS hit MIN_VIABLE (13+ players with minimums met)
+        -> max_bid = full remaining budget, bid freely
     """
     squad = get_squad(guild_id, user_id)
     budget = get_balance(guild_id, user_id)
     counts = {"GK": 0, "DEF": 0, "MID": 0, "FWD": 0}
     for p in squad:
         counts[p["group"]] += 1
+
+    # Full requirements (for display)
     needed = {}
     total_needed = 0
     for g, req in REQUIREMENTS.items():
         remaining = max(0, req - counts[g])
         needed[g] = remaining
         total_needed += remaining
-    min_cost = total_needed * CHEAPEST_PLAYER_VALUE
-    max_bid = budget - min_cost
+
+    # Minimum viable check: have they hit the yellow-zone floor?
+    min_viable_met = all(counts[g] >= MIN_VIABLE[g] for g in MIN_VIABLE)
+
+    if min_viable_met:
+        # Free zone - they can bid their full remaining budget
+        slots_needed = 0
+        for g, req in MIN_VIABLE.items():
+            slots_needed += max(0, req - counts[g])
+        min_cost = slots_needed * CHEAPEST_PLAYER_VALUE
+        max_bid = budget  # full budget, no reservation
+    else:
+        # Yellow zone - reserve for minimum viable slots only (not full 15)
+        slots_needed = 0
+        for g, req in MIN_VIABLE.items():
+            slots_needed += max(0, req - counts[g])
+        min_cost = slots_needed * CHEAPEST_PLAYER_VALUE
+        max_bid = budget - min_cost
+
     complete = total_needed == 0
     return {
         "counts": counts,
@@ -846,32 +874,86 @@ def get_needs(guild_id: int, user_id: int):
         "max_bid": max_bid,
         "complete": complete,
         "squad_size": len(squad),
+        "min_viable_met": min_viable_met,
     }
 
 
 # Soft buffer on top of /needs max_bid during live auctions
 AUCTION_MAX_BID_BUFFER = 10_000_000  # +£10M
+# Extra penalty when bidding on a position you already have enough of
+NON_ESSENTIAL_PENALTY = 20_000_000  # -£20M from cap when buying unneeded positions
 
 
-def auction_max_bid(guild_id: int, user_id: int) -> dict:
+def auction_max_bid(guild_id: int, user_id: int, player_group: str = None) -> dict:
     """
-    Hard cap for a single bid in live auctions:
-      floor = get_needs().max_bid  (budget − cheapest fill for remaining slots)
-      cap   = floor + £10M buffer
+    Position-aware bid cap for live auctions.
+
+    Two cases:
+      1. Bidding for a NEEDED position (below MIN_VIABLE for that group):
+         - Light restriction: reserve for OTHER missing slots, not this one
+         - cap = (budget - other_slots_cost) + £10M buffer
+      2. Bidding for a position already at/above minimum (or no group specified):
+         - Heavy restriction: reserve for ALL missing slots
+         - cap = (budget - all_slots_cost) - £20M penalty + £10M buffer
 
     Still subject to can_afford (never above balance).
     """
     needs = get_needs(guild_id, user_id)
+    counts = needs["counts"]
+    budget = needs["budget"]
+
+    # Calculate missing slots per group
+    missing = {}
+    total_missing = 0
+    for g, req in MIN_VIABLE.items():
+        missing[g] = max(0, req - counts[g])
+        total_missing += missing[g]
+
+    if player_group and player_group in MIN_VIABLE:
+        is_needed = missing[player_group] > 0
+        if is_needed:
+            # Bidding for a needed position - only reserve OTHER slots
+            other_slots = total_missing - 1  # minus the one they're bidding on
+            other_cost = other_slots * CHEAPEST_PLAYER_VALUE
+            floor = budget - other_cost
+            cap = floor + AUCTION_MAX_BID_BUFFER
+            return {
+                "floor": floor,
+                "cap": cap,
+                "buffer": AUCTION_MAX_BID_BUFFER,
+                "budget": budget,
+                "min_cost": other_cost,
+                "total_needed": total_missing,
+                "complete": total_missing == 0,
+                "position_needed": True,
+            }
+        else:
+            # Bidding for unneeded position - reserve ALL + penalty
+            all_cost = total_missing * CHEAPEST_PLAYER_VALUE
+            floor = budget - all_cost - NON_ESSENTIAL_PENALTY
+            cap = floor + AUCTION_MAX_BID_BUFFER
+            return {
+                "floor": floor,
+                "cap": cap,
+                "buffer": AUCTION_MAX_BID_BUFFER,
+                "budget": budget,
+                "min_cost": all_cost,
+                "total_needed": total_missing,
+                "complete": total_missing == 0,
+                "position_needed": False,
+            }
+
+    # Default (no group specified) - standard reservation
     floor = int(needs["max_bid"])
     cap = floor + AUCTION_MAX_BID_BUFFER
     return {
         "floor": floor,
         "cap": cap,
         "buffer": AUCTION_MAX_BID_BUFFER,
-        "budget": needs["budget"],
+        "budget": budget,
         "min_cost": needs["min_cost"],
-        "total_needed": needs["total_needed"],
-        "complete": needs["complete"],
+        "total_needed": total_missing,
+        "complete": total_missing == 0,
     }
 
 
