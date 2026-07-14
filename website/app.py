@@ -656,9 +656,13 @@ def squad_detail(user_id):
 
     # If free_lineup exists, auto-add any newly won players to the pitch
     # at their formation slot position so they're visible immediately
+    # BUT only if there are fewer than 11 players already on pitch
     if free_keys:
         all_slots = FM.all_slots(formation)
         for slot_idx_str, slot_player_key in lineup_state.items():
+            # Cap at 11 players on pitch
+            if len(free_lineup) >= 11:
+                break
             slot_idx = int(slot_idx_str)
             # If this player is in the squad but not in free_lineup, auto-add
             squad_keys = {p["key"] for p in squad}

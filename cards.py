@@ -912,6 +912,13 @@ def on_player_bought(guild_id: int, user_id: int, player: dict, price: int) -> O
         ok = country not in EUROPE_COUNTRIES
     elif check == "buy_group":
         ok = player.get("group") == params.get("group")
+    elif check == "buy_position_exact":
+        target = params.get("position", "")
+        targets = params.get("position_any", [])
+        if isinstance(targets, list) and targets:
+            ok = (player.get("position") == target) or (player.get("position") in targets)
+        else:
+            ok = player.get("position") == target
     elif check == "buy_country":
         ok = (player.get("country") or "") == params.get("country")
     elif check == "buy_country_active":
