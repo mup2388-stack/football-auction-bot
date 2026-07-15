@@ -1,129 +1,238 @@
-# 🏟️ Football Auction Bot — Auction Management Edition
+<div align="center">
 
-A **Discord auction management tool** for running real football draft auctions — built for
-league simulations (e.g. Football Life 26) where managers build custom teams by winning
-live auctions with a virtual budget. **100% free to run** (no paid APIs, no paid hosting).
+<img src="bot_pfp.png" width="120" height="120" alt="logo" style="border-radius: 50%;">
 
----
+# AuctionBot
 
-## ✨ What it does
+### Football Life 26 League Management
 
-The admin controls the cadence:
-1. **`/phase FWD`** — set today's position group (Forwards day, Midfielders day, etc.)
-2. **`/next`** — the bot drops ONE player for auction (the top available in that phase)
-3. Managers **bid via buttons** under the auction message
-4. The player **sells to the highest bidder**, coins are deducted, player joins their squad
-5. The bot **STOPS and waits** — no new auction until you say so
-6. Repeat: `/next`, `/next`, `/next`… or `/drop <name>` for a specific pick
+A full-stack Discord bot + web dashboard for running football auction drafts, managing squads, and simulating league seasons.
 
-**No `/pause` needed** — the bot auto-pauses after every single player. You're always in control.
+[Website](https://auction-bot-wmu4.onrender.com) &bull; [Commands](#commands) &bull; [Features](#features) &bull; [Setup](#setup) &bull; [Made by mumu_111111](https://discord.com/users/856556430370930738)
+
+</div>
 
 ---
 
-## 🔥 Features
+## Features
 
-- 🎯 **Phase-based drafting** — auction Forwards one day, Midfielders the next, etc.
-- ➡️ **One-at-a-time cadence** — `/next` drops one player, bot waits for you, repeat
-- 🧠 **Never re-auctions a sold player** — once someone owns a player, they're off the board
-- 💸 **Budget enforcement** — bidders literally cannot bid more than their balance
-- 🏟️ **Formation team view** — `/team` shows a manager's best XI as a 4-3-3 tactics board + bench
-- 📋 **Squad view** — `/squad` lists every owned player grouped by position
-- 🌍 **Pool browser** — `/pool` shows who's still available, with a dropdown to drop one
-- 📜 **Sales log** — `/sold` tracks every completed sale
-- 🔥 **Live auctions** — buttons (min-bid, quick +£5M, custom-bid modal), anti-snipe timer
-- 🏆 **Leaderboard** — richest managers by net worth (budget + squad value)
-- 💾 **SQLite** persistence — handles 20-30+ managers × 15-30 players with zero setup
+### Auction Engine
+- Live bidding with anti-snipe timer extension
+- 12,176 players from FL26 (active + icons)
+- SoFIFA face integration (83% coverage)
+- Deal verdicts (STEAL / FAIR / OVERPAY) on every sale
+- Real player faces rendered on squad/player/bench cards
+- Position-aware budget protection (can't overspend and leave gaps)
+
+### Management & Finance Cards
+- 32 unique management cards per session (goals, restrictions, powers)
+- 32 finance cards (+£150M to -£20M)
+- DM delivery with specific player targets from today's pool
+- Power cards: steal a player, swap players, peek at next drop
+- Auto-complete tracking + manual admin override
+- Force-end with no penalties option
+
+### Squad Management
+- 14 FL26 formations with exact tactical positions
+- Free Edit mode (PES-style): drag players anywhere on the pitch
+- Zone-locked GK, dynamic position labels (LB/CB/RB/CM/CAM/CF/SS)
+- Position picker popup for multi-option zones
+- FL26 tactics editor (attacking, defensive, advanced instructions)
+- Substitutes management with `/tosub` and `/unsub`
+- FUT-style metallic squad/player/bench/compare card renderers
+
+### League System
+- 5 formats: round-robin, double round-robin, groups + knockout, league + playoffs, pure knockout
+- Season draw ceremony with 32 clubs (reaction signup support)
+- Auto fixture generation, standings with form dots + club logos
+- Knockout bracket renderer (center-out, obsidian palette)
+- Match results with per-team stat entry (goals, assists, MOTM, cards, own goals)
+- Penalty shootout support for knockout draws
+- Season-scoped match stats (per-season leaderboards)
+- Top scorers golden boot card, draft recap, head-to-head records
+
+### Web Dashboard
+- 24/7 Flask website with Discord OAuth login
+- Dashboard, Standings, Fixtures, Bracket, Top Scorers, Players, Watchlist, Squads
+- Drag-and-drop lineup editor (slot-based + free edit)
+- Player radar charts and position compatibility
+- Watchlist system (synced with Discord bot)
+- "Your Team" section on squads page
+- Mobile responsive with animated hamburger menu
+- Skeleton loading screens + navigation progress bar
+- Player pool pagination with filters (position, nation, status, OVR, age, club)
+
+### Economy
+- £1B starting budget per manager
+- Tiered player pricing (£15M floor for low-rated, scaling curve for stars)
+- Icon flat-tier pricing (GOAT 95+ = £250M down to £25M)
+- Trade system with toggle, pending offers, accept/reject
+- Budget analysis (max bid calculation with squad-needs protection)
 
 ---
 
-## 🎮 Commands
+## Commands
 
-### Manager commands
-| Command | What it does |
-|---|---|
-| `/balance [@user]` | Check a budget |
-| `/profile [@user]` | Net worth, budget & top 3 players |
-| `/team [@user]` | 🏟️ Best XI as a 4-3-3 formation + bench + squad rating |
-| `/squad [@user]` | Full squad grouped by position (GK/DEF/MID/FWD) |
-| `/player <name>` | Player card, stats & market value |
-| `/pool` | 🌍 Browse available players, drop one from the dropdown |
-| `/sold` | 📜 Most recent sales |
-| `/leaderboard` | 🏆 Richest managers |
+### Your Squad
+| Command | Description |
+|---------|-------------|
+| `/balance` | Check your budget |
+| `/profile` | Net worth and top players |
+| `/team` | Starting XI formation card |
+| `/squad` | Full squad overview with match stats |
+| `/bench` | Your substitutes |
+| `/leaderboard` | Richest managers |
+| `/needs` | What positions you still need |
+| `/check` | Squad requirements status |
+| `/tactics` | View your FL26 tactics |
 
-### Admin commands
-| Command | What it does |
-|---|---|
-| `/phase <group>` | Set the auction phase: `ALL` / `GK` / `DEF` / `MID` / `FWD` |
-| `/next` | ➡️ Drop the next player — from the **queue** if set, else top available |
-| `/drop <name>` | Nominate a specific player for auction |
-| `/queue <action>` | 📜 Build a **scripted auction list** (list/add/clear/load phase) |
-| `/export` | 📥 Download **all squads as a CSV** (for Football Life etc.) |
-| `/give @user <amount>` | Grant budget to a manager |
-| `/reset @user` | Reset a manager's budget & squad |
-| `/cancel` | Cancel the auction currently running |
-| `/help` | Show all commands |
+### Players
+| Command | Description |
+|---------|-------------|
+| `/player` | View a player card (radar + stats) |
+| `/playerstats` | Match stats for a player |
+| `/compare` | Head-to-head stat duel |
+| `/matchup` | Your XI vs a rival |
+| `/pool` | Browse available players (sorted by OVR) |
+| `/topscorers` | Golden boot race |
+| `/watch` | Get pinged when a target goes up |
 
-> **Squad requirements** (configurable in code): 2 GK, 5 DEF, 5 MID, 3 FWD = 15 players.
-> `/check [@user]` shows whether a squad meets these.
+### League
+| Command | Description |
+|---------|-------------|
+| `/season setup` | Create season with format dropdown |
+| `/season add` | Add a manager |
+| `/season signup` | Add managers via message reactions |
+| `/season draw` | Team draw ceremony |
+| `/season start` | Generate fixtures and go live |
+| `/season info` | Current season status |
+| `/season end` | End the season |
+| `/fixtures` | View upcoming matches |
+| `/table` | League standings |
+| `/bracket` | Knockout bracket |
+| `/h2h` | Head-to-head record |
+| `/archive` | Browse past seasons |
+
+### Transfers
+| Command | Description |
+|---------|-------------|
+| `/trade` | Offer a player trade |
+| `/trades` | Your pending offers |
+| `/accepttrade` | Accept a trade |
+| `/rejecttrade` | Reject a trade |
+| `/sold` | Recent sales |
+| `/soldsearch` | Search auction history |
+| `/draftrecap` | Full draft summary |
+
+### Lineup & Formation
+| Command | Description |
+|---------|-------------|
+| `/formation` | Set your formation |
+| `/setpos` | Assign a player to a slot |
+| `/clearpos` | Reset a slot to auto |
+| `/resetlineup` | Reset all overrides |
+| `/tosub` | Force a player to substitutes |
+| `/unsub` | Allow a player back into auto XI |
+| `/clearsubs` | Clear all forced substitutes |
+
+### Admin *(button in `/help`)*
+| Command | Description |
+|---------|-------------|
+| `/next` | Drop next player from queue |
+| `/drop` | Nominate a specific player |
+| `/queue` | Manage the auction queue |
+| `/queueorder` | View exact drop order (private) |
+| `/unsell` | Remove player from team, refund, re-queue |
+| `/sell` | Manually assign a player for a price |
+| `/inactive` | Show managers with 0 players |
+| `/cards management` | Start/lock/end management cards |
+| `/cards finance` | Start/lock finance cards |
+| `/cards complete` | Mark a manual goal complete |
+| `/cards steal` | Resolve steal power |
+| `/cards swap` | Resolve swap power |
+| `/cards peek` | Resolve peek power |
+| `/give` | Grant budget |
+| `/take` | Remove budget |
+| `/dump` | Release a player (manager fined) |
+| `/replace` | Transfer a team to a new manager |
+| `/setteam` | Force a club name |
+| `/cancel` | Stop the running auction |
+| `/reset` | Reset a manager |
+| `/resetall` | Reset everyone |
+| `/export` | Download squads as CSV |
+| `/exportfl26` | FL26 setup guide |
+| `/importmatch` | Import match stats from CSV |
+| `/quickresult` | Enter result + stats |
+| `/updatestats` | Add match stats manually |
+| `/testseason` | Spin up a test league |
+| `/testdrop` | Test auction (nothing saved) |
 
 ---
 
-## 🏃 Quick start
+## Setup
 
+### Prerequisites
+- Python 3.10+
+- Discord bot token
+- Turso account (free, for cloud database)
+
+### Install
 ```bash
+git clone https://github.com/mup2388-stack/football-auction-bot.git
 cd football-auction-bot
 pip install -r requirements.txt
-cp .env.example .env        # paste your DISCORD_TOKEN, add GUILD_ID for instant commands
+```
+
+### Configure
+Copy `.env.example` to `.env` and fill in:
+
+```env
+DISCORD_TOKEN=your-bot-token
+ADMIN_IDS=your-discord-id
+
+# Cloud database (bot + website share one DB)
+TURSO_URL=libsql://your-db.turso.io
+TURSO_AUTH_TOKEN=your-token
+
+# Website
+WEB_ENABLED=true
+WEB_PORT=5000
+DISCORD_CLIENT_ID=your-oauth-client-id
+DISCORD_CLIENT_SECRET=your-oauth-secret
+DISCORD_REDIRECT_URI=http://localhost:5000/callback
+FLASK_SECRET_KEY=random-string
+```
+
+### Run the bot
+```bash
 python main.py
 ```
-Then type `/help` in Discord. See the original section below for full Discord bot setup.
 
----
-
-## ⚙️ The auction flow
-
-```
-Admin: /phase FWD            ← "today is forwards day"
-Admin: /next                 ← bot drops Mbappé
-  → Managers bid via buttons (Bid / Bid +£5M / Custom)
-  → Timer counts down, anti-snipe extends on late bids
-  → "Going once… twice… SOLD!" → coins deducted, player joins winner
-  → Bot STOPS. Waits.
-Admin: /next                 ← bot drops Haaland (Mbappé can't be re-auctioned!)
-  → ...repeat...
-Admin: /phase DEF            ← switch to defenders day
-Admin: /next                 ← drops top available defender
+### Deploy the website separately
+```bash
+# Render / Fly.io / any Python host
+pip install -r requirements.txt
+python web.py
 ```
 
 ---
 
-## 📊 Economy
+## Tech Stack
 
-- Budget is set in `config.py` (`STARTING_BALANCE`, currently £150M — change to £1B if you like)
-- Value curve: top stars (£86M, bids push to £100M+) down to fillers (£0.5M)
-- **256 real players** across all positions, clubs updated to June 2026
-- Supports ~17 full 15-player squads; add more to `data/players_extra.json` for more managers
-
----
-
-## 📁 Project structure
-```
-football-auction-bot/
-├── main.py              # Bot + slash commands (manager + admin)
-├── auction.py           # Live auction engine (buttons, timers, anti-snipe)
-├── display.py           # Rich embeds — formation team view, squad view, player cards
-├── economy.py           # Budgets, squads, pool filtering, sales log, leaderboard
-├── players.py           # Data, values, tiers, phase groups, search, flags
-├── database.py          # SQLite layer (users, squads, history, guild state)
-├── config.py            # All tunable settings
-├── data/players.json    # 132 curated top players
-├── data/players_extra.json  # 129 squad-depth players
-└── requirements.txt
-```
+| Component | Technology |
+|-----------|-----------|
+| Bot | discord.py 2.x |
+| Web | Flask |
+| Database | Turso (libSQL) / SQLite (local) |
+| Images | Pillow + NumPy |
+| Auth | Discord OAuth2 |
+| Hosting | Local (bot) + Render (website) |
+| DNS/CDN | Cloudflare |
 
 ---
 
-## ☁️ Free hosting
-See the original README sections on Oracle Cloud Always Free, Render, Fly.io, or a
-Raspberry Pi. The hosting configs (`render.yaml`, `fly.toml`, `football-auction.service`)
-are included.
+<div align="center">
+
+Made by [mumu_111111](https://discord.com/users/856556430370930738)
+
+</div>
