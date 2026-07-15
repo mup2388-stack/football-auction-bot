@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="bot_pfp.png" width="120" height="120" alt="logo" style="border-radius: 50%;">
+<img src="pfp.jpeg" width="120" height="120" alt="logo" style="border-radius: 50%;">
 
 # AuctionBot
 
