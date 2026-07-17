@@ -1036,18 +1036,33 @@ def _build_comparison(p1, p2, gid):
             "winner": 0 if avg1 > avg2 else (1 if avg2 > avg1 else -1),
         })
 
-    # 6-card attributes — order-safe by index (stats dict is pac/sho/pas/dri/def/phy)
-    attr_labels = ["PAC", "SHO", "PAS", "DRI", "DEF", "PHY"]
-    cs1 = list(card_stats.values())
-    cs2 = list(card_stats2.values())
-    attr_rows = []
-    for i, label in enumerate(attr_labels):
-        v1 = cs1[i] if i < len(cs1) else 0
-        v2 = cs2[i] if i < len(cs2) else 0
-        attr_rows.append({
-            "label": label, "v1": v1, "v2": v2,
-            "winner": 0 if v1 > v2 else (1 if v2 > v1 else -1),
-        })
+    # 6-card attributes for the radar. GKs use different card stats
+    # (div/han/kic/ref/spd/pos) than outfield (pac/sho/pas/dri/def/phy),
+    # so the axes + labels adapt to position — otherwise a GK's DIV value
+    # gets mislabeled as "PAC" on the radar.
+    if is_gk:
+        gk_keys = ["div", "han", "kic", "ref", "spd", "pos"]
+        gk_labels = ["DIV", "HAN", "KIC", "REF", "SPD", "POS"]
+        attr_rows = []
+        for i, key in enumerate(gk_keys):
+            v1 = card_stats.get(key, 40)
+            v2 = card_stats2.get(key, 40)
+            attr_rows.append({
+                "label": gk_labels[i], "v1": v1, "v2": v2,
+                "winner": 0 if v1 > v2 else (1 if v2 > v1 else -1),
+            })
+    else:
+        attr_labels = ["PAC", "SHO", "PAS", "DRI", "DEF", "PHY"]
+        cs1 = list(card_stats.values())
+        cs2 = list(card_stats2.values())
+        attr_rows = []
+        for i, label in enumerate(attr_labels):
+            v1 = cs1[i] if i < len(cs1) else 0
+            v2 = cs2[i] if i < len(cs2) else 0
+            attr_rows.append({
+                "label": label, "v1": v1, "v2": v2,
+                "winner": 0 if v1 > v2 else (1 if v2 > v1 else -1),
+            })
 
     radar = _dual_radar(attr_rows)
 

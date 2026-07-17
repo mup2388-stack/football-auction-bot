@@ -7,9 +7,12 @@
 
   // Clockwise from top-left (matches FIFA-ish layout in the ref shot)
   // PAC NW, SHO NE, PAS E, DRI SE, DEF SW, PHY W
+  // For GKs the template passes data-axes="DIV,HAN,KIC,REF,SPD,POS" + the
+  // matching data-div/data-han/... values, so the wheel shows real GK stats
+  // under correct labels instead of mislabeling them as PAC/SHO/...
   var ANGLES = [-120, -60, 0, 60, 120, 180];
-  var KEYS = ["pac", "sho", "pas", "dri", "def", "phy"];
-  var LABELS = ["PAC", "SHO", "PAS", "DRI", "DEF", "PHY"];
+  var DEFAULT_KEYS = ["pac", "sho", "pas", "dri", "def", "phy"];
+  var DEFAULT_LABELS = ["PAC", "SHO", "PAS", "DRI", "DEF", "PHY"];
   // Label colors — slight spice, not rainbow vomit
   var COLORS = ["#5B9BD5", "#70AD47", "#70AD47", "#70AD47", "#ED7D31", "#FFC000"];
 
@@ -61,6 +64,19 @@
     var cx = 160;
     var cy = 160;
     var maxR = 108;
+
+    // Resolve axes: GK stages carry data-axes="DIV,HAN,..."; outfield stages
+    // default to PAC/SHO/PAS/DRI/DEF/PHY. Keys are lowercased label names so
+    // the wheel reads data-div, data-pac, etc. from the stage.
+    var axesAttr = stage.getAttribute("data-axes");
+    var KEYS, LABELS;
+    if (axesAttr && axesAttr.trim()) {
+      LABELS = axesAttr.split(",").map(function (s) { return s.trim(); });
+      KEYS = LABELS.map(function (s) { return s.toLowerCase(); });
+    } else {
+      KEYS = DEFAULT_KEYS;
+      LABELS = DEFAULT_LABELS;
+    }
 
     // Concentric hex rings — translucent so it sits clean on the hero
     var ringFills = [

@@ -4,21 +4,22 @@
 {% block content %}
 {% set s = player.get('stats') or {} %}
 {% set as_ = all_stats if all_stats is defined else (player.get('all_stats') or {}) %}
+{% set is_gk = (player.position == 'GK') %}
 
-{% set pac = s.get('pac') or (((as_.get('Speed', 40) + as_.get('Acceleration', 40)) / 2) | round | int) %}
-{% set sho = s.get('sho') or (((as_.get('Finishing', 40) + as_.get('KickingPower', 40)) / 2) | round | int) %}
-{% set pas = s.get('pas') or (((as_.get('LowPass', 40) + as_.get('LoftedPass', 40)) / 2) | round | int) %}
-{% set dri = s.get('dri') or (((as_.get('Dribbling', 40) + as_.get('BallControl', 40)) / 2) | round | int) %}
-{% set deff = s.get('def') or (((as_.get('DefensiveAwareness', 40) + as_.get('BallWinning', 40)) / 2) | round | int) %}
-{% set phy = s.get('phy') or (((as_.get('PhysicalContact', 40) + as_.get('Stamina', 40)) / 2) | round | int) %}
-
-{% if player.position == 'GK' and not s.get('pac') %}
-  {% set pac = ((as_.get('Speed', 40) + as_.get('Acceleration', 40)) / 2) | round | int %}
-  {% set sho = ((as_.get('GKClearing', 40) + as_.get('KickingPower', 40)) / 2) | round | int %}
-  {% set pas = ((as_.get('LowPass', 40) + as_.get('LoftedPass', 40)) / 2) | round | int %}
-  {% set dri = ((as_.get('GKCatching', 40) + as_.get('BallControl', 40)) / 2) | round | int %}
-  {% set deff = ((as_.get('GKAwareness', 40) + as_.get('GKReflexes', 40)) / 2) | round | int %}
-  {% set phy = ((as_.get('GKReach', 40) + as_.get('PhysicalContact', 40)) / 2) | round | int %}
+{% if is_gk %}
+  {# GK radar: real card stats (div/han/kic/ref/spd/pos) with correct labels.
+     The radar JS reads data-axes for the labels + data-<lowercase> for values. #}
+  {% set radar_axes = 'DIV,HAN,KIC,REF,SPD,POS' %}
+  {% set dv1 = s.get('div', 40) %}{% set dv2 = s.get('han', 40) %}{% set dv3 = s.get('kic', 40) %}
+  {% set dv4 = s.get('ref', 40) %}{% set dv5 = s.get('spd', 40) %}{% set dv6 = s.get('pos', 40) %}
+{% else %}
+  {% set radar_axes = 'PAC,SHO,PAS,DRI,DEF,PHY' %}
+  {% set dv1 = s.get('pac') or (((as_.get('Speed', 40) + as_.get('Acceleration', 40)) / 2) | round | int) %}
+  {% set dv2 = s.get('sho') or (((as_.get('Finishing', 40) + as_.get('KickingPower', 40)) / 2) | round | int) %}
+  {% set dv3 = s.get('pas') or (((as_.get('LowPass', 40) + as_.get('LoftedPass', 40)) / 2) | round | int) %}
+  {% set dv4 = s.get('dri') or (((as_.get('Dribbling', 40) + as_.get('BallControl', 40)) / 2) | round | int) %}
+  {% set dv5 = s.get('def') or (((as_.get('DefensiveAwareness', 40) + as_.get('BallWinning', 40)) / 2) | round | int) %}
+  {% set dv6 = s.get('phy') or (((as_.get('PhysicalContact', 40) + as_.get('Stamina', 40)) / 2) | round | int) %}
 {% endif %}
 
 <div class="player-hero reveal">
@@ -45,15 +46,18 @@
       </div>
     </div>
 
-    {# clean wheel only — no panel, no title, no chips #}
+    {# radar wheel: axes + labels adapt to position (GK vs outfield) #}
     <div class="player-hero-radar radar-stage"
-         data-pac="{{ pac }}"
-         data-sho="{{ sho }}"
-         data-pas="{{ pas }}"
-         data-dri="{{ dri }}"
-         data-def="{{ deff }}"
-         data-phy="{{ phy }}"
-         aria-label="PAC {{ pac }} SHO {{ sho }} PAS {{ pas }} DRI {{ dri }} DEF {{ deff }} PHY {{ phy }}">
+         data-axes="{{ radar_axes }}"
+         {% if is_gk %}
+         data-div="{{ dv1 }}" data-han="{{ dv2 }}" data-kic="{{ dv3 }}"
+         data-ref="{{ dv4 }}" data-spd="{{ dv5 }}" data-pos="{{ dv6 }}"
+         aria-label="DIV {{ dv1 }} HAN {{ dv2 }} KIC {{ dv3 }} REF {{ dv4 }} SPD {{ dv5 }} POS {{ dv6 }}"
+         {% else %}
+         data-pac="{{ dv1 }}" data-sho="{{ dv2 }}" data-pas="{{ dv3 }}"
+         data-dri="{{ dv4 }}" data-def="{{ dv5 }}" data-phy="{{ dv6 }}"
+         aria-label="PAC {{ dv1 }} SHO {{ dv2 }} PAS {{ dv3 }} DRI {{ dv4 }} DEF {{ dv5 }} PHY {{ dv6 }}"
+         {% endif %}>
       <svg class="radar-svg radar-svg-clean" viewBox="0 0 320 320" role="img">
         <defs>
           <linearGradient id="radarFill" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -118,7 +122,6 @@
 
 {% set pr = player.get('position_ratings') or {} %}
 {% set reg = player.get('position') or '' %}
-{% set is_gk = (reg == 'GK') %}
 
 <section class="pos-compat panel glow-card reveal">
   <div class="pos-compat-head">
