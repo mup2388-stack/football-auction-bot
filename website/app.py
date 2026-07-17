@@ -434,6 +434,11 @@ def players_page():
 
     sold = sold_keys  # set of keys
 
+    # BATCHED owner lookup: ONE query for all sold players instead of
+    # N x 5 round-trips via get_player_owner(). This is the fix that takes
+    # the players page from ~1-2 minutes to ~1 second on Turso.
+    owners = E.owners_map(gid, sold) if sold else {}
+
     # Watchlist (optional — keep if you wired watchlist)
     cu = _current_user()
     watched = set()
@@ -490,9 +495,9 @@ def players_page():
 
         owner_team = None
         if is_sold:
-            owner = E.get_player_owner(gid, p["key"])
-            if owner:
-                owner_team = owner[1]
+            o = owners.get(p["key"])
+            if o:
+                owner_team = o[1]   # team_name from the batched map
 
         try:
             value_str = _money(
@@ -732,6 +737,296 @@ def squad_detail(user_id):
         tactics_config_json=_json.dumps(tactics_config),
         free_lineup_json=_json.dumps(free_lineup),
     )
+
+
+@app.route("/compare")
+def compare_page():
+    """Compare two players head to head.
+
+    The player browser (filters + pagination) ALWAYS renders, so picking
+    the second player never wipes out the list. The head-to-head panels
+    appear above the browser once both slots are filled.
+    """
+    from urllib.parse import urlencode
+
+    gid = _guild_id()
+    p1_key = request.args.get("p1", "").strip()
+    p2_key = request.args.get("p2", "").strip()
+    p1 = P.get(p1_key) if p1_key else None
+    p2 = P.get(p2_key) if p2_key else None
+
+    # Comparison data (only when both chosen)
+    comp = _build_comparison(p1, p2, gid) if (p1 and p2) else None
+
+    # ---- filters ----
+    q = (request.args.get("q") or "").strip()
+    pos = (request.args.get("pos") or "").strip()
+    nation = (request.args.get("nation") or "").strip()
+    min_ovr = request.args.get("min_ovr", type=int) or 0
+    club_filter = (request.args.get("club") or "").strip()
+    max_age = request.args.get("max_age", type=int) or 0
+
+    all_players = P.all_players()
+    results = []
+    for p in all_players:
+        if q and q.lower() not in p["name"].lower() \
+           and q.lower() not in p.get("club", "").lower():
+            continue
+        if pos and pos != "ALL" and p.get("group", "") != pos:
+            continue
+        if nation and p.get("country", "") != nation:
+            continue
+        if min_ovr and p["ovr"] < min_ovr:
+            continue
+        if club_filter and club_filter.lower() not in p.get("club", "").lower():
+            continue
+        if max_age:
+            try:
+                if int(p.get("age", 99)) > max_age:
+                    continue
+            except (ValueError, TypeError):
+                continue
+        results.append(p)
+
+    results.sort(key=lambda x: x["ovr"], reverse=True)
+    filtered_count = len(results)
+
+    # ---- pagination ----
+    per_page = 24
+    page = request.args.get("page", 1, type=int)
+    if page < 1:
+        page = 1
+    total_pages = max(1, (filtered_count + per_page - 1) // per_page)
+    if page > total_pages:
+        page = total_pages
+    start = (page - 1) * per_page
+    page_results = results[start:start + per_page]
+
+    # carry filters (not page) into slot links
+    filter_params = {}
+    for k in ("q", "pos", "nation", "min_ovr", "club", "max_age"):
+        v = request.args.get(k)
+        if v and str(v) != "0" and str(v) != "ALL":
+            filter_params[k] = v
+    filter_qs = urlencode(filter_params)
+
+    def _url(extra):
+        parts = []
+        if filter_qs:
+            parts.append(filter_qs)
+        if extra:
+            parts.append(extra)
+        return "/compare?" + "&".join(parts) if parts else "/compare"
+
+    def slot_link(key):
+        # Fill the first empty slot; if both full, swap the challenger (P2)
+        if p1 and p2:
+            return _url(f"p1={quote(p1['key'])}&p2={quote(key)}")
+        if p1:
+            return _url(f"p1={quote(p1['key'])}&p2={quote(key)}")
+        if p2:
+            return _url(f"p2={quote(p2['key'])}&p1={quote(key)}")
+        return _url(f"p1={quote(key)}")
+
+    def page_link(n):
+        params = dict(filter_params)
+        if p1:
+            params["p1"] = p1["key"]
+        if p2:
+            params["p2"] = p2["key"]
+        params["page"] = n
+        return "/compare?" + urlencode(params)
+
+    def clear_link(which):
+        params = dict(filter_params)
+        if which == "p1" and p2:
+            params["p2"] = p2["key"]
+        elif which == "p2" and p1:
+            params["p1"] = p1["key"]
+        if not params:
+            return "/compare"
+        return "/compare?" + urlencode(params)
+
+    nations = sorted(set(p.get("country", "") for p in all_players if p.get("country")))
+
+    return render_template(
+        "compare.html",
+        active_page="",
+        p1=p1,
+        p2=p2,
+        comp=comp,
+        results=page_results,
+        q=q, pos=pos, nation=nation, min_ovr=min_ovr,
+        club=club_filter, max_age=max_age,
+        nations=nations,
+        filtered_count=filtered_count,
+        page=page,
+        total_pages=total_pages,
+        slot_link=slot_link,
+        page_link=page_link,
+        clear_link=clear_link,
+        face_url=_face_url,
+    )
+
+
+def _dual_radar(rows, cx=160, cy=160, R=108, scale=99):
+    """Build geometry for a 6-axis radar overlaying two players (PAC/SHO/PAS/DRI/DEF/PHY).
+
+    Pure SVG data (no JS), rendered by the compare template. Geometry matches
+    radar-wheel.js conventions (same angles, same scale) so the dual wheel reads
+    as a sibling of the player-detail wheel. No glow filters: hairline rings,
+    semantic opponent-tone fills (blue = player 1, coral = player 2).
+    """
+    import math
+    # PAC NW, SHO NE, PAS E, DRI SE, DEF SW, PHY W (clockwise from top-left)
+    angles = [-120, -60, 0, 60, 120, 180]
+
+    def _pt(r, deg):
+        a = math.radians(deg)
+        return cx + r * math.cos(a), cy + r * math.sin(a)
+
+    def _hex(r):
+        return " ".join(
+            f"{_pt(r, angles[i])[0]:.1f},{_pt(r, angles[i])[1]:.1f}" for i in range(6)
+        )
+
+    rings = [_hex(R * f) for f in (1.0, 0.75, 0.5, 0.25)]
+    spokes = []
+    for i in range(6):
+        x, y = _pt(R, angles[i])
+        spokes.append((round(x, 1), round(y, 1)))
+
+    poly_a, poly_b, axes = [], [], []
+    for i, row in enumerate(rows):
+        v1 = max(0, min(99, row["v1"]))
+        v2 = max(0, min(99, row["v2"]))
+        a1 = _pt(R * (v1 / scale), angles[i])
+        a2 = _pt(R * (v2 / scale), angles[i])
+        poly_a.append(f"{a1[0]:.1f},{a1[1]:.1f}")
+        poly_b.append(f"{a2[0]:.1f},{a2[1]:.1f}")
+        lx, ly = _pt(R + 26, angles[i])
+        axes.append({"label": row["label"], "lx": round(lx, 1), "ly": round(ly, 1)})
+
+    return {
+        "rings": rings,
+        "spokes": spokes,
+        "poly_a": " ".join(poly_a),
+        "poly_b": " ".join(poly_b),
+        "axes": axes,
+        "cx": cx, "cy": cy, "size": cx * 2,
+    }
+
+
+def _build_comparison(p1, p2, gid):
+    """Compute head-to-head comparison data between two players."""
+    s1 = p1.get("all_stats", {})
+    s2 = p2.get("all_stats", {})
+    card_stats = p1.get("stats", {})
+    card_stats2 = p2.get("stats", {})
+    is_gk = p1.get("position") == "GK" or p2.get("position") == "GK"
+
+    if is_gk:
+        groups = [
+            ("Goalkeeping", [
+                ("GK Reflexes", "GKReflexes"), ("GK Catching", "GKCatching"),
+                ("GK Clearing", "GKClearing"), ("GK Awareness", "GKAwareness"),
+                ("GK Reach", "GKReach"),
+            ]),
+            ("Distribution", [
+                ("Low Pass", "LowPass"), ("Lofted Pass", "LoftedPass"),
+                ("Kicking Power", "KickingPower"), ("Curl", "Curl"),
+            ]),
+            ("Physical", [
+                ("Speed", "Speed"), ("Acceleration", "Acceleration"),
+                ("Physical Contact", "PhysicalContact"), ("Stamina", "Stamina"),
+                ("Jump", "Jump"),
+            ]),
+        ]
+    else:
+        groups = [
+            ("Pace", [("Speed", "Speed"), ("Acceleration", "Acceleration")]),
+            ("Shooting", [
+                ("Finishing", "Finishing"), ("Heading", "Heading"),
+                ("Place Kicking", "PlaceKicking"), ("Kicking Power", "KickingPower"),
+            ]),
+            ("Passing", [
+                ("Low Pass", "LowPass"), ("Lofted Pass", "LoftedPass"), ("Curl", "Curl"),
+            ]),
+            ("Dribbling", [
+                ("Ball Control", "BallControl"), ("Dribbling", "Dribbling"),
+                ("Tight Possession", "TightPossession"), ("Balance", "Balance"),
+            ]),
+            ("Defending", [
+                ("Defensive Awareness", "DefensiveAwareness"),
+                ("Ball Winning", "BallWinning"), ("Aggression", "Aggression"),
+            ]),
+            ("Physical", [
+                ("Physical Contact", "PhysicalContact"), ("Stamina", "Stamina"),
+                ("Jump", "Jump"),
+            ]),
+        ]
+
+    comp_groups = []
+    total_1 = 0
+    total_2 = 0
+    for group_name, stats_list in groups:
+        rows = []
+        g1_sum = 0
+        g2_sum = 0
+        for label, key in stats_list:
+            v1 = s1.get(key, 40)
+            v2 = s2.get(key, 40)
+            g1_sum += v1
+            g2_sum += v2
+            total_1 += v1
+            total_2 += v2
+            winner = 0 if v1 > v2 else (1 if v2 > v1 else -1)
+            rows.append({
+                "label": label, "v1": v1, "v2": v2, "winner": winner,
+                "pct1": v1, "pct2": v2,
+            })
+        avg1 = round(g1_sum / len(stats_list)) if stats_list else 0
+        avg2 = round(g2_sum / len(stats_list)) if stats_list else 0
+        comp_groups.append({
+            "name": group_name,
+            "rows": rows,
+            "avg1": avg1,
+            "avg2": avg2,
+            "winner": 0 if avg1 > avg2 else (1 if avg2 > avg1 else -1),
+        })
+
+    # 6-card attributes — order-safe by index (stats dict is pac/sho/pas/dri/def/phy)
+    attr_labels = ["PAC", "SHO", "PAS", "DRI", "DEF", "PHY"]
+    cs1 = list(card_stats.values())
+    cs2 = list(card_stats2.values())
+    attr_rows = []
+    for i, label in enumerate(attr_labels):
+        v1 = cs1[i] if i < len(cs1) else 0
+        v2 = cs2[i] if i < len(cs2) else 0
+        attr_rows.append({
+            "label": label, "v1": v1, "v2": v2,
+            "winner": 0 if v1 > v2 else (1 if v2 > v1 else -1),
+        })
+
+    radar = _dual_radar(attr_rows)
+
+    sold = E.sold_player_keys(gid)
+    owners = E.owners_map(gid, [p1["key"], p2["key"]])
+    o1 = owners.get(p1["key"])
+    o2 = owners.get(p2["key"])
+
+    return {
+        "comp_groups": comp_groups,
+        "attr_rows": attr_rows,
+        "radar": radar,
+        "total_1": total_1,
+        "total_2": total_2,
+        "is_gk": is_gk,
+        "owner1": o1[1] if o1 else None,
+        "owner2": o2[1] if o2 else None,
+        "sold1": p1["key"] in sold,
+        "sold2": p2["key"] in sold,
+    }
 
 
 @app.route("/player/<path:player_key>")
@@ -1098,8 +1393,10 @@ def watchlist_page():
     if not user:
         return redirect("/login")
     keys = E.watch_list(gid, int(user["id"]))
-    players = []
     sold = E.sold_player_keys(gid)
+    # BATCHED owner lookup (one query, not N x 5)
+    owners = E.owners_map(gid, [k for k in keys if k in sold]) if sold else {}
+    players = []
     for k in keys:
         p = P.get(k)
         if not p:
@@ -1107,9 +1404,9 @@ def watchlist_page():
         is_sold = k in sold
         owner_team = None
         if is_sold:
-            owner = E.get_player_owner(gid, k)
-            if owner:
-                owner_team = owner[1]
+            o = owners.get(k)
+            if o:
+                owner_team = o[1]
         try:
             value_str = _money(P.market_value(p["ovr"], is_icon=P.is_icon(p)))
         except Exception:
@@ -1150,13 +1447,16 @@ def scorers():
     sid = season["id"] if season else None
 
     raw_scorers = E.get_top_scorers(gid, 15, season_id=sid)
+    # BATCHED owner lookup (one query instead of N x 5)
+    scorer_keys = [s["player_key"] for s in raw_scorers]
+    owners = E.owners_map(gid, scorer_keys) if scorer_keys else {}
     scorers = []
     for s in raw_scorers:
         p = P.get(s["player_key"])
         if not p:
             continue
-        owner = E.get_player_owner(gid, s["player_key"])
-        club = owner[1] if owner and owner[1] else p.get("club", "")
+        o = owners.get(s["player_key"])
+        club = o[1] if o and o[1] else p.get("club", "")
         scorers.append({
             "name": p["name"],
             "club": club,

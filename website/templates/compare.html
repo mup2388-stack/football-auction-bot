@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}Compare Players - AuctionBot{% endblock %}
+
+{% block content %}
+{#
+  COMPARE PAGE
+  Skill basis: Impeccable (neo-kinpaku, gold = sole primary accent, hairline-first,
+  no glow/glass), Taste-skill (em-dash ban, middot rationed, eyebrow restraint,
+  color+shape lock), Emil (transform-only motion, :active feedback, <300ms).
+  Opponent tones (blue/coral) are SEMANTIC data-encoding only, never CTAs.
+#}
+
+<section class="cmp">
+  {# ---- heading: 3D text kept for site-wide brand consistency ---- #}
+  <div class="cmp-head">
+    <h1 class="cmp-title text-3d">Compare players</h1>
+    <p class="cmp-sub">Pick two from the pool. Numbers settle it.</p>
+  </div>
+
+  {# ---- selection rail (not cards): two slots split by a hairline ---- #}
+  <div class="cmp-rail" role="group" aria-label="Selected players">
+    {% set both = p1 and p2 %}
+
+    {# slot 1 #}
+    <div class="cmp-slot {% if p1 %}is-on{% endif %}">
+      {% if p1 %}
+      <a href="/player/{{ p1.key }}" class="cmp-slot-core">
+        <img src="{{ face_url(p1.key) }}" class="cmp-slot-face" alt="">
+        <span class="cmp-slot-text">
+          <span class="cmp-slot-num">1</span>
+          <span class="cmp-slot-name">{{ p1.name }}</span>
+          <span class="cmp-slot-meta">{{ p1.position }} {{ p1.ovr }} OVR</span>
+        </span>
+      </a>
+      <span class="cmp-slot-ovr {% if p1.ovr >= 90 %}ovr-90{% elif p1.ovr >= 80 %}ovr-80{% elif p1.ovr >= 70 %}ovr-70{% else %}ovr-low{% endif %}">{{ p1.ovr }}</span>
+      <a href="{{ clear_link('p1') }}" class="cmp-slot-x" aria-label="Remove player 1">&times;</a>
+      {% else %}
+      <span class="cmp-slot-num dim">1</span>
+      <span class="cmp-slot-empty">Choose player 1</span>
+      {% endif %}
+    </div>
+
+    <span class="cmp-rail-sep" aria-hidden="true">vs</span>
+
+    {# slot 2 #}
+    <div class="cmp-slot {% if p2 %}is-on{% endif %}">
+      {% if p2 %}
+      <a href="/player/{{ p2.key }}" class="cmp-slot-core">
+        <img src="{{ face_url(p2.key) }}" class="cmp-slot-face" alt="">
+        <span class="cmp-slot-text">
+          <span class="cmp-slot-num">2</span>
+          <span class="cmp-slot-name">{{ p2.name }}</span>
+          <span class="cmp-slot-meta">{{ p2.position }} {{ p2.ovr }} OVR</span>
+        </span>
+      </a>
+      <span class="cmp-slot-ovr {% if p2.ovr >= 90 %}ovr-90{% elif p2.ovr >= 80 %}ovr-80{% elif p2.ovr >= 70 %}ovr-70{% else %}ovr-low{% endif %}">{{ p2.ovr }}</span>
+      <a href="{{ clear_link('p2') }}" class="cmp-slot-x" aria-label="Remove player 2">&times;</a>
+      {% else %}
+      <span class="cmp-slot-num dim">2</span>
+      <span class="cmp-slot-empty">Choose player 2</span>
+      {% endif %}
+    </div>
+  </div>
+
+  {# =========================================================================
+     COMPARISON  (only when both slots filled)
+     Radar on the side (sticky), detailed stats on the main column.
+     No duplicated pair header (the rail already shows faces+names+VS+remove).
+     ========================================================================= #}
+  {% if comp %}
+
+  <div class="cmp-body">
+    {# radar: shape-at-a-glance, sticky so it stays in view while you
+       read the numbers #}
+    <aside class="cmp-aside" aria-label="Attribute shape comparison">
+      <div class="cmp-radar">
+        <svg viewBox="0 0 320 320" class="cmp-radar-svg" role="img" aria-hidden="true">
+          <g class="cmp-radar-rings">
+            {% for pts in comp.radar.rings %}<polygon points="{{ pts }}"></polygon>{% endfor %}
+          </g>
+          <g class="cmp-radar-spokes">
+            {% for x, y in comp.radar.spokes %}
+            <line x1="{{ comp.radar.cx }}" y1="{{ comp.radar.cy }}" x2="{{ x }}" y2="{{ y }}"></line>
+            {% endfor %}
+          </g>
+          <polygon class="cmp-radar-a" points="{{ comp.radar.poly_a }}"></polygon>
+          <polygon class="cmp-radar-b" points="{{ comp.radar.poly_b }}"></polygon>
+          <g class="cmp-radar-axes">
+            {% for ax in comp.radar.axes %}
+            <text x="{{ ax.lx }}" y="{{ ax.ly }}">{{ ax.label }}</text>
+            {% endfor %}
+          </g>
+        </svg>
+        <div class="cmp-radar-key">
+          <span><i class="ka"></i>{{ p1.name }}</span>
+          <span><i class="kb"></i>{{ p2.name }}</span>
+        </div>
+      </div>
+    </aside>
+
+    {# detailed stat groups: the numbers #}
+    <div class="cmp-groups">
+      {% for group in comp.comp_groups %}
+      <section class="cmp-group {% if group.winner == 0 %}w-a{% elif group.winner == 1 %}w-b{% endif %}">
+        <div class="cmp-group-h">
+          <h3 class="cmp-group-name">{{ group.name }}</h3>
+          <span class="cmp-group-score"><b class="a {% if group.winner != 0 %}dim{% endif %}">{{ group.avg1 }}</b><i aria-hidden="true">/</i><b class="b {% if group.winner != 1 %}dim{% endif %}">{{ group.avg2 }}</b></span>
+        </div>
+        {% for row in group.rows %}
+        <div class="cmp-stat sm {% if row.winner == 0 %}w-a{% elif row.winner == 1 %}w-b{% endif %}">
+          <span class="cmp-stat-val a">{{ row.v1 }}</span>
+          <div class="cmp-stat-axis">
+            <span class="cmp-bar a" style="--v:{{ row.v1 }}"></span>
+            <span class="cmp-bar b" style="--v:{{ row.v2 }}"></span>
+            <span class="cmp-stat-label">{{ row.label }}</span>
+          </div>
+          <span class="cmp-stat-val b">{{ row.v2 }}</span>
+        </div>
+        {% endfor %}
+      </section>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# verdict #}
+  {% if comp.total_1 != comp.total_2 %}
+  <p class="cmp-verdict">
+    <span class="cmp-verdict-tag">Result</span>
+    <strong>{{ p1.name if comp.total_1 > comp.total_2 else p2.name }}</strong>
+    takes it, <b class="cmp-verdict-num">{{ comp.total_1 if comp.total_1 > comp.total_2 else comp.total_2 }}</b> to <b class="cmp-verdict-num">{{ comp.total_2 if comp.total_1 > comp.total_2 else comp.total_1 }}</b> on total stats.
+  </p>
+  {% else %}
+  <p class="cmp-verdict"><span class="cmp-verdict-tag">Result</span> Dead level. Both sit on <b class="cmp-verdict-num">{{ comp.total_1 }}</b> total stats.</p>
+  {% endif %}
+
+  <div class="cmp-rule"></div>
+  {% endif %}
+
+  {# =========================================================================
+     POOL  (filters + paginated grid, always present)
+     ========================================================================= #}
+  <div class="cmp-pool-h">
+    <h2 class="cmp-pool-title">Player pool</h2>
+    <span class="cmp-pool-count">{{ filtered_count }} players{% if p1 or p2 %}. Tap a card to load it into a slot.{% endif %}</span>
+  </div>
+
+  <form class="cmp-filters" method="get" action="/compare">
+    {% if p1 %}<input type="hidden" name="p1" value="{{ p1.key }}">{% endif %}
+    {% if p2 %}<input type="hidden" name="p2" value="{{ p2.key }}">{% endif %}
+    <input type="text" name="q" value="{{ q }}" placeholder="Search name or club" class="filter-search" aria-label="Search">
+    <select name="pos" class="filter-select" aria-label="Position">
+      <option value="ALL">All positions</option>
+      <option value="GK"  {% if pos == 'GK' %}selected{% endif %}>GK</option>
+      <option value="DEF" {% if pos == 'DEF' %}selected{% endif %}>Defenders</option>
+      <option value="MID" {% if pos == 'MID' %}selected{% endif %}>Midfielders</option>
+      <option value="FWD" {% if pos == 'FWD' %}selected{% endif %}>Forwards</option>
+    </select>
+    <select name="min_ovr" class="filter-select" aria-label="Minimum rating">
+      <option value="0">Any rating</option>
+      {% for o in [75, 80, 83, 85, 88, 90] %}
+      <option value="{{ o }}" {% if min_ovr == o %}selected{% endif %}>{{ o }} and up</option>
+      {% endfor %}
+    </select>
+    <select name="nation" class="filter-select" aria-label="Nation">
+      <option value="">All nations</option>
+      {% for n in nations %}
+      <option value="{{ n }}" {% if nation == n %}selected{% endif %}>{{ n }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="filter-btn">Apply</button>
+    {% if q or (pos and pos != 'ALL') or min_ovr or nation or club %}
+    <a href="{{ clear_link('p1' if p1 else ('p2' if p2 else 'none')) }}" class="filter-clear">Clear</a>
+    {% endif %}
+  </form>
+
+  {% if results %}
+  <div class="players-grid">
+    {% for p in results %}
+    {% set is_a = p1 and p.key == p1.key %}
+    {% set is_b = p2 and p.key == p2.key %}
+    <a href="{{ slot_link(p.key) }}" class="player-card-link cmp-pick {% if is_a %}is-a{% elif is_b %}is-b{% endif %}" aria-label="Compare {{ p.name }}">
+      <div class="player-card-mini">
+        <img src="{{ face_url(p.key) }}" class="player-mini-face" alt="">
+        <div class="player-mini-info">
+          <div class="player-mini-name">{{ p.name }}{% if is_a %} <span class="cmp-mark a">1</span>{% elif is_b %} <span class="cmp-mark b">2</span>{% endif %}</div>
+          <div class="player-mini-meta">{{ p.position }} {{ p.club[:16] }}{% if p.club|length > 16 %}...{% endif %}</div>
+        </div>
+        <div class="player-mini-right">
+          <span class="ovr-badge {% if p.ovr >= 90 %}ovr-90{% elif p.ovr >= 80 %}ovr-80{% elif p.ovr >= 70 %}ovr-70{% else %}ovr-low{% endif %}">{{ p.ovr }}</span>
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if total_pages > 1 %}
+  <nav class="pagination" aria-label="Pages">
+    {% if page > 1 %}<a class="page-btn" href="{{ page_link(page - 1) }}" aria-label="Previous">&lsaquo;</a>{% endif %}
+    {% set start_p = [1, page - 2] | max %}
+    {% set end_p = [total_pages, page + 2] | min %}
+    {% if start_p > 1 %}
+      <a class="page-btn" href="{{ page_link(1) }}">1</a>
+      {% if start_p > 2 %}<span class="page-ellipsis">&hellip;</span>{% endif %}
+    {% endif %}
+    {% for n in range(start_p, end_p + 1) %}
+      <a class="page-btn {% if n == page %}page-current{% endif %}" href="{{ page_link(n) }}">{{ n }}</a>
+    {% endfor %}
+    {% if end_p < total_pages %}
+      {% if end_p < total_pages - 1 %}<span class="page-ellipsis">&hellip;</span>{% endif %}
+      <a class="page-btn" href="{{ page_link(total_pages) }}">{{ total_pages }}</a>
+    {% endif %}
+    {% if page < total_pages %}<a class="page-btn" href="{{ page_link(page + 1) }}" aria-label="Next">&rsaquo;</a>{% endif %}
+  </nav>
+  {% endif %}
+
+  {% elif q or (pos and pos != 'ALL') or min_ovr or nation %}
+  <div class="empty"><h3>No matches</h3><p>Loosen the filters and try again.</p></div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/compare-nav.js') }}"></script>
+{% endblock %}

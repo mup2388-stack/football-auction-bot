@@ -470,6 +470,7 @@ def render_squad_card(guild_id, member_name, user_id, squad, avatar_url=None):
     # ── Formation + lineup ──────────────────────────────────────────
     import formations as FM
     lineup, formation_name = E.get_lineup(guild_id, user_id)
+    free_positions = E.get_free_lineup(guild_id, user_id)
 
     xi_ovrs = [p["ovr"] for _, p in lineup if p]
     rating = round(sum(xi_ovrs)/len(xi_ovrs)) if xi_ovrs else 0
@@ -494,26 +495,18 @@ def render_squad_card(guild_id, member_name, user_id, squad, avatar_url=None):
     CW_BASE, CH_BASE = 200, 250
     CARD_ASPECT = CW_BASE / CH_BASE  # 0.8 — keep the FUT card shape when scaling
 
-    # ── ROW SPACING — fit ALL rows, no overflow, no overlap ─────────
+    # ── ROW SPACING — for normal formations only ─────────────────
     unique_ys = sorted(set(s["y"] for s in FM.all_slots(FM.get_formation(formation_name))))
     n_rows = len(unique_ys)
-    # Usable area: just below the header (bar_h) to just above the footer.
-    # Starting higher (was PITCH_TOP=270) moves the formation UP and frees
-    # ~100px of vertical room that was previously wasted.
     usable_top = bar_h + 70
-    usable_bottom = (H - 64) - 14   # 64px footer + 14px breathing room
+    usable_bottom = (H - 64) - 14
     usable_h = usable_bottom - usable_top
     min_gap = 22
-    # Scale card height so every row fits with min_gap. 4-row formations keep
-    # the full 250px; 5-6 row formations compress (previously they overflowed
-    # and the GK was clipped off the bottom of the canvas).
     fit_ch = (usable_h - (n_rows - 1) * min_gap) / n_rows
     CH = min(CH_BASE, int(fit_ch))
     CW = int(CH * CARD_ASPECT)
-    # Even vertical distribution across the usable area (guarantees no overlap)
     actual_gap = (usable_h - n_rows * CH) / max(1, n_rows - 1)
 
-    # Map each formation Y fraction to its row's top-left pixel Y
     y_map = {}
     for i, orig_y in enumerate(unique_ys):
         y_map[orig_y] = usable_top + i * (CH + actual_gap)
@@ -523,16 +516,100 @@ def render_squad_card(guild_id, member_name, user_id, squad, avatar_url=None):
     # ── CARDS ───────────────────────────────────────────────────────
     CH_CARD = CH
 
-    for slot, player in lineup:
-        cx = PITCH_LEFT + pitch_w * slot["x"]
-        card_x = cx - CW / 2
-        # Y from the fitted row map (fallback should never trigger)
-        card_y = y_map.get(slot["y"], usable_top + (pitch_h * slot["y"]) - CH_CARD / 2)
-        if player:
-            card = build_card(player, CW, CH_CARD, display_pos=slot["pos"])
-        else:
-            card = build_card(None, CW, CH_CARD, display_pos=slot["pos"])
-        paste_shadow(canvas, card, (card_x, card_y))
+    if free_positions:
+        # Auto-merge: add any squad players not in free_positions
+        # at their formation slot positions
+        merged_positions = dict(free_positions)
+        formation_slots = FM.all_slots(FM.get_formation(formation_name))
+        squad_keys = {p["key"] for p in squad}
+        slot_idx = 0
+        for slot_info, player in lineup:
+            if player and player["key"] in squad_keys and player["key"] not in merged_positions:
+                if slot_idx < len(formation_slots):
+                    s = formation_slots[slot_idx]
+                    merged_positions[player["key"]] = {
+                        "x": s["x"], "y": s["y"],
+                        "pos": s["pos"],
+                    }
+                    slot_idx += 1
+
+        # Smart overlap detection: reduce card size if cards overlap
+        # Calculate pixel positions for all players
+        positions_px = []
+        for pkey, pos_data in merged_positions.items():
+            player = None
+            for p in squad:
+                if p["key"] == pkey:
+                    player = p
+                    break
+            if not player:
+                continue
+            cx = PITCH_LEFT + pitch_w * pos_data["x"]
+            card_x = cx - CW / 2
+            card_y = PITCH_TOP + pitch_h * pos_data["y"] - CH_CARD / 2
+            card_y = max(bar_h + 10, min(card_y, H - CH_CARD - 80))
+            positions_px.append({
+                "player": player,
+                "x": card_x,
+                "y": card_y,
+                "w": CW,
+                "h": CH_CARD,
+                "pos_data": pos_data,
+            })
+
+        # Check for overlaps and reduce card size if needed
+        def check_overlaps(size_mult):
+            test_w = int(CW_BASE * size_mult)
+            test_h = int(CH_BASE * size_mult)
+            padding = 10
+            for i in range(len(positions_px)):
+                for j in range(i + 1, len(positions_px)):
+                    p1 = positions_px[i]
+                    p2 = positions_px[j]
+                    # Recalculate with scaled size
+                    x1 = p1["x"] + (CW - test_w) / 2
+                    y1 = p1["y"] + (CH_CARD - test_h) / 2
+                    x2 = p2["x"] + (CW - test_w) / 2
+                    y2 = p2["y"] + (CH_CARD - test_h) / 2
+                    overlap = not (
+                        x1 + test_w + padding < x2 or
+                        x2 + test_w + padding < x1 or
+                        y1 + test_h + padding < y2 or
+                        y2 + test_h + padding < y1
+                    )
+                    if overlap:
+                        return True
+            return False
+
+        # Start at full size, reduce until no overlaps (min 50% size)
+        size_mult = 1.0
+        while size_mult > 0.5 and check_overlaps(size_mult):
+            size_mult -= 0.05
+
+        final_cw = int(CW_BASE * size_mult)
+        final_ch = int(CH_BASE * size_mult)
+
+        # Render with smart size
+        for item in positions_px:
+            player = item["player"]
+            pos_data = item["pos_data"]
+            # Center the scaled card on the same position
+            card_x = item["x"] + (CW - final_cw) / 2
+            card_y = item["y"] + (CH_CARD - final_ch) / 2
+            card_y = max(bar_h + 10, min(card_y, H - final_ch - 80))
+            card = build_card(player, final_cw, final_ch, display_pos=pos_data.get("pos", player.get("position", "")))
+            paste_shadow(canvas, card, (card_x, card_y))
+    else:
+        # Normal formation mode
+        for slot, player in lineup:
+            cx = PITCH_LEFT + pitch_w * slot["x"]
+            card_x = cx - CW / 2
+            card_y = y_map.get(slot["y"], usable_top + (pitch_h * slot["y"]) - CH_CARD / 2)
+            if player:
+                card = build_card(player, CW, CH_CARD, display_pos=slot["pos"])
+            else:
+                card = build_card(None, CW, CH_CARD, display_pos=slot["pos"])
+            paste_shadow(canvas, card, (card_x, card_y))
 
     # ── Footer — premium with accent line and label/value pairs ─────
     sv = E.squad_value(squad)

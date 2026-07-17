@@ -827,6 +827,16 @@ def can_bid(guild_id: int, user_id: int, player: dict, amount: int) -> tuple[boo
         if max_bid is not None and amount > int(max_bid):
             return False, f"Your card caps single bids at {E.money(int(max_bid))}."
 
+        max_bid_pct = params.get("max_bid_pct")
+        if max_bid_pct is not None:
+            budget = E.get_balance(guild_id, user_id)
+            cap = int(budget * float(max_bid_pct))
+            if amount > cap:
+                return False, (
+                    f"Your card caps single bids at 40% of your budget "
+                    f"({E.money(cap)})."
+                )
+
         max_night = params.get("max_night_spend")
         if max_night is not None:
             spent = int(meta.get("night_spend") or 0)
@@ -894,11 +904,15 @@ def on_player_bought(guild_id: int, user_id: int, player: dict, price: int) -> O
 
     if a["status"] == "completed":
         return None
-    if card.get("type") not in ("goal",):
+    
+    # Get card type/check/params — use stored META as primary source
+    # (survives bot restarts + card deck changes), fall back to cards_data
+    ctype = meta.get("type") or card.get("type", "")
+    if ctype not in ("goal",):
         return None
 
-    check = card.get("check")
-    params = card.get("params") or {}
+    check = meta.get("check") or card.get("check")
+    params = meta.get("params") or card.get("params") or {}
     ok = False
 
     if check == "buy_ovr_min":

@@ -62,7 +62,11 @@
         <img src="{{ p.face_url }}" class="player-mini-face" alt="">
         <div class="player-mini-info">
           <div class="player-mini-name">{{ p.name }}</div>
+          {% if p.is_sold and p.owner_team %}
+          <div class="player-mini-meta owner">{{ p.position }} &middot; {{ p.owner_team }}</div>
+          {% else %}
           <div class="player-mini-meta">{{ p.position }} &middot; {{ p.club[:14] }}{% if p.club|length > 14 %}...{% endif %}</div>
+          {% endif %}
         </div>
         {% if is_logged_in %}
         <button class="watch-toggle {{ 'watching' if p.watching else '' }}" data-key="{{ p.key }}" onclick="toggleWatch(event, this)" title="{{ 'Remove from watchlist' if p.watching else 'Add to watchlist' }}">

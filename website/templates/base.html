@@ -60,6 +60,11 @@
                   transition:width .3s ease,opacity .3s ease;opacity:0}
     #progress-bar.active{opacity:1}
     #progress-bar.done{width:100%!important;opacity:0;transition:width .2s ease,opacity .4s ease .1s}
+
+    /* Floating Compare button — pre-positioned before external CSS loads */
+    .fab-stack{position:fixed;right:20px;bottom:20px;z-index:90}
+    .fab{display:inline-flex;align-items:center;height:52px;border-radius:999px;
+         background:#FFCE60;color:#1a1408;text-decoration:none;opacity:0}
   </style>
 
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
@@ -164,6 +169,27 @@
   <div class="container">AuctionBot &middot; FL26 League Management &middot; <span class="footer-credit">Made by <a href="https://discord.com/users/856556430370930738" class="footer-credit-link">mumu_111111</a></span></div>
 </footer>
 
+{# ===== Floating Compare button (FAB) =====
+   Kept OUT of the nav (nav already full at 8 items).
+   Lives bottom-right, slides in after page load. Built as a .fab-stack so
+   future tools (squad compare, head-to-head) can stack above this one.
+   Hidden on the /compare page itself. #}
+{% if not request.path.startswith('/compare') %}
+<div class="fab-stack" id="fab-stack">
+  <a href="/compare" class="fab" id="fab-compare" aria-label="Compare two players head to head" title="Compare players">
+    <span class="fab-ico">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M7 7h13"/>
+        <path d="M16 3l4 4-4 4"/>
+        <path d="M17 17H4"/>
+        <path d="M8 13l-4 4 4 4"/>
+      </svg>
+    </span>
+    <span class="fab-label">Compare</span>
+  </a>
+</div>
+{% endif %}
+
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 <script src="{{ url_for('static', filename='js/dot-field.js') }}"></script>
 <script>
@@ -177,6 +203,9 @@
       main.style.display = '';
       requestAnimationFrame(function(){ main.classList.add('ready'); });
     }
+    // Reveal the floating Compare button after content, with a slight stagger
+    var fab = document.getElementById('fab-compare');
+    if (fab) { setTimeout(function(){ fab.classList.add('ready'); }, 260); }
   }
   if (document.readyState === 'complete') revealContent();
   else window.addEventListener('load', revealContent);
@@ -200,6 +229,10 @@
     setTimeout(function(){ bar.style.width = '0'; bar.classList.remove('done'); }, 500);
   }
   document.addEventListener('click', function(e) {
+    // If something else already prevented default (e.g. compare-nav.js doing
+    // an instant in-page swap), this is NOT a real navigation. Don't show
+    // the progress bar / skeleton for it.
+    if (e.defaultPrevented) return;
     var link = e.target.closest('a');
     if (!link) return;
     var href = link.getAttribute('href');
@@ -252,5 +285,5 @@
 {% block scripts %}{% endblock %}
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a1a29ed3ca8b4049',t:'MTc4Mzg4NjI4Mg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a1c62c436fdf3af2',t:'MTc4NDI1OTA3Nw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>

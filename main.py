@@ -474,8 +474,8 @@ async def playerstats(interaction: discord.Interaction, name: str):
 @app_commands.describe(
     player1="First player (the BLUE side).",
     player2="Second player (the CORAL side).")
-@app_commands.autocomplete(player1=player_autocomplete)
-@app_commands.autocomplete(player2=player_autocomplete)
+@app_commands.autocomplete(player1=all_player_autocomplete)
+@app_commands.autocomplete(player2=all_player_autocomplete)
 async def compare(interaction: discord.Interaction, player1: str, player2: str):
     await interaction.response.defer(thinking=True)
     a = P.get(player1)
@@ -585,6 +585,30 @@ async def leaderboard(interaction: discord.Interaction):
     if top_member:
         e.set_thumbnail(url=top_member.display_avatar.url)
     e.set_footer(text="Net Worth = Budget + Squad Value")
+    await interaction.followup.send(embed=e)
+
+
+@bot.tree.command(description="See everyone's budget at a glance.")
+async def budgets(interaction: discord.Interaction):
+    await interaction.response.defer()
+    entries = E.leaderboard(interaction.guild_id, 32)
+    if not entries:
+        await interaction.followup.send("No data yet.", ephemeral=True)
+        return
+    # Sort by budget only (not net worth)
+    entries.sort(key=lambda e: e["balance"], reverse=True)
+    lines = []
+    for en in entries:
+        member = interaction.guild.get_member(en["user_id"])
+        name = member.display_name if member else f"<@{en['user_id']}>"
+        team_name = E.get_team_name(interaction.guild_id, en["user_id"]) or name
+        team_tag = EM.club_tag(team_name)
+        lines.append(f"{team_tag} — **{E.money(en['balance'])}**")
+    e = discord.Embed(
+        title=f"{EM.e('money')} All Budgets",
+        description="\n".join(lines),
+        color=C.AMBER,
+    )
     await interaction.followup.send(embed=e)
 
 

@@ -746,6 +746,7 @@ def queue_shuffle(guild_id: int):
 # --------------------------------------------------------------------------
 
 _FACE_URL_MAP = None
+_FACE_URL_CACHE = {}   # in-process cache to avoid a DB round-trip per face image
 
 
 def _load_face_map():
@@ -767,17 +768,27 @@ def _load_face_map():
 
 def get_face_url(player_key: str):
     """Get SoFiFA face URL. Checks DB first (manual overrides via /setface),
-    then falls back to the pre-built face_urls.json mapping."""
+    then falls back to the pre-built face_urls.json mapping.
+
+    Caches per key after first lookup so the /players grid (30+ face images)
+    does not make 30 separate DB round-trips on Turso.
+    """
+    global _FACE_URL_MAP
+    cache = _FACE_URL_CACHE
+    if player_key in cache:
+        return cache[player_key]
     with db.cursor() as c:
         row = c.execute(
             "SELECT face_url FROM player_faces WHERE player_key=?", (player_key,)
         ).fetchone()
     if row and row["face_url"]:
+        cache[player_key] = row["face_url"]
         return row["face_url"]
-    global _FACE_URL_MAP
     if _FACE_URL_MAP is None:
         _load_face_map()
-    return _FACE_URL_MAP.get(player_key)
+    val = _FACE_URL_MAP.get(player_key)
+    cache[player_key] = val
+    return val
 
 
 def set_face_url(player_key: str, url: str):
@@ -787,6 +798,7 @@ def set_face_url(player_key: str, url: str):
             "ON CONFLICT(player_key) DO UPDATE SET face_url=excluded.face_url",
             (player_key, url),
         )
+    _FACE_URL_CACHE[player_key] = url
 
 
 # --------------------------------------------------------------------------
@@ -842,6 +854,39 @@ def get_player_owner(guild_id: int, player_key: str):
         return None
     uid = row["user_id"]
     return (uid, get_team_name(guild_id, uid), get_team_logo(guild_id, uid))
+
+
+def owners_map(guild_id: int, keys: "set | list | None" = None) -> dict:
+    """Batch owner lookup. Returns {player_key: (user_id, team_name, team_logo)}.
+
+    ONE database round-trip instead of N x 5 calls to get_player_owner().
+    This is the critical optimization for the /players, /compare, /watchlist
+    pages on Turso, where every query is an HTTP request and the old per-player
+    loop made a sold-player page take 1-2 minutes.
+    """
+    with db.cursor() as c:
+        if keys:
+            # limit to the requested set (keeps the result small)
+            params = [guild_id] + list(keys)
+            placeholders = ",".join("?" * len(keys))
+            rows = c.execute(
+                "SELECT s.player_key AS pk, s.user_id AS uid, "
+                "u.team_name AS tn, u.team_logo AS tl "
+                "FROM squads s LEFT JOIN users u "
+                "ON s.guild_id = u.guild_id AND s.user_id = u.user_id "
+                f"WHERE s.guild_id=? AND s.player_key IN ({placeholders})",
+                tuple(params),
+            ).fetchall()
+        else:
+            rows = c.execute(
+                "SELECT s.player_key AS pk, s.user_id AS uid, "
+                "u.team_name AS tn, u.team_logo AS tl "
+                "FROM squads s LEFT JOIN users u "
+                "ON s.guild_id = u.guild_id AND s.user_id = u.user_id "
+                "WHERE s.guild_id=?",
+                (guild_id,),
+            ).fetchall()
+    return {r["pk"]: (r["uid"], r["tn"], r["tl"]) for r in rows}
 
 
 # --------------------------------------------------------------------------

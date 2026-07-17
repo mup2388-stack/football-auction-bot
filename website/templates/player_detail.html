@@ -57,22 +57,14 @@
       <svg class="radar-svg radar-svg-clean" viewBox="0 0 320 320" role="img">
         <defs>
           <linearGradient id="radarFill" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#7CFF6B" stop-opacity="0.50"/>
-            <stop offset="55%" stop-color="#2ECC71" stop-opacity="0.22"/>
-            <stop offset="100%" stop-color="#0B3D2E" stop-opacity="0.12"/>
+            <stop offset="0%" stop-color="#2ECC71" stop-opacity="0.30"/>
+            <stop offset="100%" stop-color="#0B3D2E" stop-opacity="0.14"/>
           </linearGradient>
-          <filter id="radarGlow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="2" result="b"/>
-            <feMerge>
-              <feMergeNode in="b"/>
-              <feMergeNode in="SourceGraphic"/>
-            </feMerge>
-          </filter>
         </defs>
         <g class="radar-rings"></g>
         <g class="radar-spokes"></g>
-        <polygon class="radar-shape" fill="url(#radarFill)" stroke="#E8FFE4" stroke-width="2"
-                 stroke-dasharray="5 4" stroke-linejoin="round" filter="url(#radarGlow)"></polygon>
+        <polygon class="radar-shape" fill="url(#radarFill)" stroke="#9BE3B0" stroke-width="2"
+                 stroke-dasharray="5 4" stroke-linejoin="round"></polygon>
         <g class="radar-dots"></g>
         <g class="radar-labels"></g>
       </svg>
