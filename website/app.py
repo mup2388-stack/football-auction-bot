@@ -652,37 +652,71 @@ def squad_detail(user_id):
         if slot_data and player:
             lineup_state[slot_data["index"]] = player["key"]
 
-    # Bench = squad minus starting XI minus anyone in free_lineup
-    used_keys = set(lineup_state.values())
+    # ---- FREE LINEUP CLEANUP + RENDER RULES ----
+    # Rules (no ghosts, no overlaps, max 11 on pitch, rest to bench):
+    #   1. Remove ghost keys (players no longer in this squad: dumped/traded)
+    #   2. Dedup near-identical positions (old auto-merge bug stacked CFs)
+    #   3. Cap at 11 on pitch; overflow -> bench
+    #   4. Auto-merge newly-bought players IF there's room (<11) and the slot
+    #      isn't already taken (prevents the overlap). No room -> bench.
+    #   5. Persist the cleaned lineup once so the DB stays clean.
     free_lineup = E.get_free_lineup(gid, user_id)
-    free_keys = set(free_lineup.keys())
-    used_keys = used_keys | free_keys
-    bench_keys = [p["key"] for p in squad if p["key"] not in used_keys]
+    squad_keys = {p["key"] for p in squad}
+    cleaned = False
 
-    # If free_lineup exists, auto-add any newly won players to the pitch
-    # at their formation slot position so they're visible immediately
-    # BUT only if there are fewer than 11 players already on pitch
-    if free_keys:
-        all_slots = FM.all_slots(formation)
-        for slot_idx_str, slot_player_key in lineup_state.items():
-            # Cap at 11 players on pitch
-            if len(free_lineup) >= 11:
-                break
-            slot_idx = int(slot_idx_str)
-            # If this player is in the squad but not in free_lineup, auto-add
-            squad_keys = {p["key"] for p in squad}
-            if slot_player_key in squad_keys and slot_player_key not in free_keys:
-                slot_info = all_slots[slot_idx] if slot_idx < len(all_slots) else None
-                if slot_info:
-                    free_lineup[slot_player_key] = {
-                        "x": slot_info["x"],
-                        "y": slot_info["y"],
-                        "pos": slot_info["pos"],
-                    }
-                    free_keys.add(slot_player_key)
-                    # Remove from bench if they were there
-                    if slot_player_key in bench_keys:
-                        bench_keys.remove(slot_player_key)
+    # 1. ghosts
+    for k in [k for k in free_lineup if k not in squad_keys]:
+        del free_lineup[k]
+        cleaned = True
+
+    # 2. dedup near-identical positions (within 2% = same formation slot)
+    seen = []
+    dup_keys = []
+    for k, v in list(free_lineup.items()):
+        vx, vy = v.get("x", 0.5), v.get("y", 0.5)
+        if any(abs(vx - sx) < 0.02 and abs(vy - sy) < 0.02 for sx, sy in seen):
+            dup_keys.append(k)
+        else:
+            seen.append((vx, vy))
+    for k in dup_keys:
+        del free_lineup[k]
+        cleaned = True
+
+    # 3. cap at 11
+    if len(free_lineup) > 11:
+        for k in list(free_lineup.keys())[11:]:
+            del free_lineup[k]
+        cleaned = True
+
+    # 4. auto-merge newly-bought players into free slots (only if room + no overlap)
+    all_slots = FM.all_slots(formation)
+    for slot_idx_str, slot_key in lineup_state.items():
+        if len(free_lineup) >= 11:
+            break
+        if slot_key not in squad_keys or slot_key in free_lineup:
+            continue
+        slot_idx = int(slot_idx_str)
+        slot_info = all_slots[slot_idx] if slot_idx < len(all_slots) else None
+        if not slot_info:
+            continue
+        sx, sy = slot_info["x"], slot_info["y"]
+        # skip if this slot is already occupied (prevents the overlap bug)
+        if any(abs(sx - v.get("x", 0.5)) < 0.02 and abs(sy - v.get("y", 0.5)) < 0.02
+               for v in free_lineup.values()):
+            continue
+        free_lineup[slot_key] = {"x": sx, "y": sy, "pos": slot_info["pos"]}
+        cleaned = True
+
+    # 5. persist the cleaned lineup once
+    if cleaned:
+        if free_lineup:
+            E.set_free_lineup(gid, user_id, free_lineup)
+        else:
+            E.clear_free_lineup(gid, user_id)
+
+    free_keys = set(free_lineup.keys())
+    # Everyone NOT on the pitch is on the bench. Deterministic: no ghosts.
+    bench_keys = [p["key"] for p in squad if p["key"] not in free_keys]
 
     groups = {"GK": [], "DEF": [], "MID": [], "FWD": []}
     for p in squad:
