@@ -105,48 +105,62 @@ def squad_count(guild_id: int, user_id: int) -> int:
 
 
 def squads_overview(guild_id: int) -> list:
-    """Batch fetch ALL managers' squad data in 2 queries (not N x 5).
+    """Batch fetch ALL managers' squad data in ONE joined query (not N x 5).
+
+    Source of truth: the `squads` table (managers who actually OWN players),
+    exactly like the original /squads route. NOT the `users` table — managers
+    can have squad players without a users row (draw/bot paths), and sourcing
+    from users drops them. We LEFT JOIN users for balance/team identity.
 
     Returns [{user_id, team_name, team_logo, balance, squad, squad_value,
-    power_rating}, ...] with squad_value and power_rating computed in-memory.
-    Critical optimization for the /squads page on Turso, where the old
-    per-manager loop made ~160 sequential HTTP round-trips for 32 managers.
+    power_rating}, ...].
     """
-    # Query 1: all users (balance + team identity) in ONE call
+    # ONE joined call: squad memberships + user identity.
+    # squad-driven: every manager who owns at least one player is included.
     with db.cursor() as c:
-        user_rows = c.execute(
-            "SELECT user_id, balance, team_name, team_logo "
-            "FROM users WHERE guild_id=?",
+        rows = c.execute(
+            "SELECT s.user_id AS uid, s.player_key AS pk, "
+            "u.balance AS bal, u.team_name AS tn, u.team_logo AS tl "
+            "FROM squads s "
+            "LEFT JOIN users u "
+            "ON s.guild_id = u.guild_id AND s.user_id = u.user_id "
+            "WHERE s.guild_id=?",
             (guild_id,),
         ).fetchall()
 
-    # Query 2: all squad memberships in ONE call
-    with db.cursor() as c:
-        squad_rows = c.execute(
-            "SELECT user_id, player_key FROM squads WHERE guild_id=?",
-            (guild_id,),
-        ).fetchall()
-
-    # Group squad players by user
+    # Group squad players + identity by user (first non-null value wins)
     by_user = {}
-    for r in squad_rows:
-        by_user.setdefault(r["user_id"], []).append(r["player_key"])
+    for r in rows:
+        uid = r["uid"]
+        entry = by_user.setdefault(uid, {
+            "user_id": uid,
+            "team_name": None,
+            "team_logo": None,
+            "balance": None,
+            "keys": [],
+        })
+        entry["keys"].append(r["pk"])
+        # fill identity from the join (same for all the user's rows)
+        if entry["team_name"] is None and r["tn"]:
+            entry["team_name"] = r["tn"]
+        if entry["team_logo"] is None and r["tl"]:
+            entry["team_logo"] = r["tl"]
+        if entry["balance"] is None and r["bal"] is not None:
+            entry["balance"] = r["bal"]
 
     out = []
-    for u in user_rows:
-        uid = u["user_id"]
-        keys = by_user.get(uid, [])
+    for uid, entry in by_user.items():
         squad = []
-        for k in keys:
+        for k in entry["keys"]:
             pdata = P.get(k)
             if pdata:
                 squad.append(pdata)
         sv = squad_value(squad)
         out.append({
             "user_id": uid,
-            "team_name": u["team_name"] or f"Manager {uid}",
-            "team_logo": u["team_logo"],
-            "balance": u["balance"] if u["balance"] is not None else Config.STARTING_BALANCE,
+            "team_name": entry["team_name"] or f"Manager {uid}",
+            "team_logo": entry["team_logo"],
+            "balance": entry["balance"] if entry["balance"] is not None else Config.STARTING_BALANCE,
             "squad": squad,
             "squad_value": sv,
             "power_rating": _power_rating_from_squad(squad),
