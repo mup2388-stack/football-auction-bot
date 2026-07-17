@@ -101,7 +101,72 @@ def squad_count(guild_id: int, user_id: int) -> int:
             "SELECT COUNT(*) AS n FROM squads WHERE guild_id=? AND user_id=?",
             (guild_id, user_id),
         ).fetchone()
-        return row["n"] if row else 0
+    return row["n"] if row else 0
+
+
+def squads_overview(guild_id: int) -> list:
+    """Batch fetch ALL managers' squad data in 2 queries (not N x 5).
+
+    Returns [{user_id, team_name, team_logo, balance, squad, squad_value,
+    power_rating}, ...] with squad_value and power_rating computed in-memory.
+    Critical optimization for the /squads page on Turso, where the old
+    per-manager loop made ~160 sequential HTTP round-trips for 32 managers.
+    """
+    # Query 1: all users (balance + team identity) in ONE call
+    with db.cursor() as c:
+        user_rows = c.execute(
+            "SELECT user_id, balance, team_name, team_logo "
+            "FROM users WHERE guild_id=?",
+            (guild_id,),
+        ).fetchall()
+
+    # Query 2: all squad memberships in ONE call
+    with db.cursor() as c:
+        squad_rows = c.execute(
+            "SELECT user_id, player_key FROM squads WHERE guild_id=?",
+            (guild_id,),
+        ).fetchall()
+
+    # Group squad players by user
+    by_user = {}
+    for r in squad_rows:
+        by_user.setdefault(r["user_id"], []).append(r["player_key"])
+
+    out = []
+    for u in user_rows:
+        uid = u["user_id"]
+        keys = by_user.get(uid, [])
+        squad = []
+        for k in keys:
+            pdata = P.get(k)
+            if pdata:
+                squad.append(pdata)
+        sv = squad_value(squad)
+        out.append({
+            "user_id": uid,
+            "team_name": u["team_name"] or f"Manager {uid}",
+            "team_logo": u["team_logo"],
+            "balance": u["balance"] if u["balance"] is not None else Config.STARTING_BALANCE,
+            "squad": squad,
+            "squad_value": sv,
+            "power_rating": _power_rating_from_squad(squad),
+        })
+    return out
+
+
+def _power_rating_from_squad(squad: list) -> int:
+    """Compute power rating from an already-fetched squad list (no DB calls)."""
+    if not squad:
+        return 0
+    sorted_squad = sorted(squad, key=lambda p: p["ovr"], reverse=True)
+    best_xi = sorted_squad[:11]
+    xi_avg = sum(p["ovr"] for p in best_xi) / len(best_xi) if best_xi else 0
+    depth = sum(1 for p in squad if p["ovr"] >= 80)
+    sv = squad_value(squad)
+    value_score = min(sv / 1_000_000_000 * 20, 20)
+    xi_score = max(0, min(60, (xi_avg - 60) * 60 / 40))
+    depth_score = min(depth * 2, 20)
+    return round(xi_score + depth_score + value_score)
 
 
 # --------------------------------------------------------------------------

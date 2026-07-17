@@ -215,6 +215,8 @@
 
   {% elif q or (pos and pos != 'ALL') or min_ovr or nation %}
   <div class="empty"><h3>No matches</h3><p>Loosen the filters and try again.</p></div>
+  {% else %}
+  <div class="empty"><h3>No players yet</h3><p>Players appear here once they're queued or auctioned in this league.</p></div>
   {% endif %}
 </section>
 {% endblock %}

@@ -178,18 +178,34 @@ def fetch_face(url):
             return Image.open(path).convert("RGBA")
         except Exception:
             pass
-    try:
-        req = urllib.request.Request(url, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        })
-        data = urllib.request.urlopen(req, timeout=15).read()
-        if len(data) < 1000:
-            return None
-        im = Image.open(io.BytesIO(data)).convert("RGBA")
-        im.save(path)
-        return im
-    except Exception:
-        return None
+    # Try the primary URL, then fall back to older eFootball/FIFA versions.
+    # SoFIFA removes old version images, so a "26_" URL may 404 while "25_"
+    # or "24_" still work. This is why Pelé (and other icons) break on
+    # fresh deploys where the local cache is empty.
+    urls_to_try = [url]
+    if "sofifa.net" in url:
+        import re
+        m = re.search(r"/(\d+)_(\d+)\.png", url)
+        if m:
+            base = url.rsplit("/", 1)[0] + "/"
+            for ver in ["25", "24", "23", "22"]:
+                alt = f"{base}{ver}_240.png"
+                if alt != url:
+                    urls_to_try.append(alt)
+    for try_url in urls_to_try:
+        try:
+            req = urllib.request.Request(try_url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            })
+            data = urllib.request.urlopen(req, timeout=15).read()
+            if len(data) < 1000:
+                continue
+            im = Image.open(io.BytesIO(data)).convert("RGBA")
+            im.save(path)
+            return im
+        except Exception:
+            continue
+    return None
 
 
 def fetch_avatar_sync(url):

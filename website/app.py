@@ -362,29 +362,22 @@ def standings():
 def squads():
     """List all managers who have players. Logged-in managers get a My Squad pin."""
     gid = _guild_id()
-    with db.cursor() as c:
-        rows = c.execute(
-            "SELECT DISTINCT user_id FROM squads WHERE guild_id=?",
-            (gid,),
-        ).fetchall()
+    # BATCHED: 2 queries total instead of N x 5 per-manager HTTP round-trips
+    raw = E.squads_overview(gid)
 
     managers = []
-    for r in rows:
-        uid = r["user_id"]
-        team_name = E.get_team_name(gid, uid) or f"Manager {uid}"
-        squad = E.get_squad(gid, uid)
-        sv = E.squad_value(squad)
-        bal = E.get_balance(gid, uid)
-        pr = E.power_rating(gid, uid)
+    for m in raw:
+        sv = m["squad_value"]
+        bal = m["balance"]
         managers.append({
-            "user_id": uid,
-            "team_name": team_name,
-            "logo_url": _team_logo_url(team_name),
-            "squad_size": len(squad),
+            "user_id": m["user_id"],
+            "team_name": m["team_name"],
+            "logo_url": _team_logo_url(m["team_name"]),
+            "squad_size": len(m["squad"]),
             "squad_value": _money(sv),
             "budget": _money(bal),
             "net_worth": _money(sv + bal),
-            "power_rating": pr,
+            "power_rating": m["power_rating"],
             "_net_raw": sv + bal,
         })
 
@@ -419,20 +412,22 @@ def players_page():
     """Browse draft players: queue + sold in this guild (not the entire FL26 DB)."""
     gid = _guild_id()
 
-    # Queue (still available) + anyone currently owned in this guild (sold)
+    # Queue (still available) + owned (sold) + skipped (auctioned, no bids)
     queued_keys = set(E.queue_list(gid))
     sold_keys = E.sold_player_keys(gid)
+    skipped_keys = E.unsold_player_keys(gid)
 
-    # Full draft pool for this server = queue ∪ sold
-    draft_keys = queued_keys | sold_keys
+    # Full draft pool for this server = queue + sold + skipped.
+    # Only players actually part of THIS league's auction — never the full DB.
+    draft_keys = queued_keys | sold_keys | skipped_keys
 
     if draft_keys:
         all_players = [p for p in P.all_players() if p["key"] in draft_keys]
     else:
-        # Fallback if nothing queued/sold yet: empty list (or optional full DB)
         all_players = []
 
     sold = sold_keys  # set of keys
+    skipped = skipped_keys  # set of keys
 
     # BATCHED owner lookup: ONE query for all sold players instead of
     # N x 5 round-trips via get_player_owner(). This is the fix that takes
@@ -470,11 +465,15 @@ def players_page():
         if pos and pos != "ALL":
             if p.get("group", "") != pos:
                 continue
-        # status filter — THIS is what restores sold visibility
+        # status filter
         is_sold = p["key"] in sold
+        is_skipped = p["key"] in skipped
+        is_available = p["key"] in queued_keys
+        if status == "available" and not is_available:
+            continue
         if status == "sold" and not is_sold:
             continue
-        if status == "unsold" and is_sold:
+        if status == "skipped" and not is_skipped:
             continue
         # rating filter
         if min_ovr and p["ovr"] < min_ovr:
@@ -517,6 +516,7 @@ def players_page():
             "face_url": _face_url(p["key"]),
             "value": value_str,
             "is_sold": is_sold,
+            "is_skipped": is_skipped,
             "owner_team": owner_team,
             "watching": p["key"] in watched,
         })
@@ -766,7 +766,14 @@ def compare_page():
     club_filter = (request.args.get("club") or "").strip()
     max_age = request.args.get("max_age", type=int) or 0
 
-    all_players = P.all_players()
+    # Only players actually in THIS league's auction (queue + sold + skipped),
+    # never the full FL26 database. Mirrors the players page pool.
+    queued_keys = set(E.queue_list(gid))
+    sold_keys = E.sold_player_keys(gid)
+    skipped_keys = E.unsold_player_keys(gid)
+    draft_keys = queued_keys | sold_keys | skipped_keys
+    all_players = [p for p in P.all_players() if p["key"] in draft_keys] if draft_keys else []
+
     results = []
     for p in all_players:
         if q and q.lower() not in p["name"].lower() \

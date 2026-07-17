@@ -27,8 +27,9 @@
 
   <select name="status" class="filter-select">
     <option value="" {{ 'selected' if not status else '' }}>All Players</option>
-    <option value="unsold" {{ 'selected' if status == 'unsold' else '' }}>Available</option>
+    <option value="available" {{ 'selected' if status == 'available' else '' }}>Available</option>
     <option value="sold" {{ 'selected' if status == 'sold' else '' }}>Sold</option>
+    <option value="skipped" {{ 'selected' if status == 'skipped' else '' }}>Skipped</option>
   </select>
 
   <select name="min_ovr" class="filter-select">
@@ -58,7 +59,7 @@
   {% for p in players %}
   <div class="player-card-wrap">
     <a href="/player/{{ p.key }}" class="player-card-link">
-      <div class="player-card-mini {{ 'sold' if p.is_sold else '' }}">
+      <div class="player-card-mini {{ 'sold' if p.is_sold else ('skipped' if p.is_skipped else '') }}">
         <img src="{{ p.face_url }}" class="player-mini-face" alt="">
         <div class="player-mini-info">
           <div class="player-mini-name">{{ p.name }}</div>
@@ -75,7 +76,9 @@
         {% endif %}
         <div class="player-mini-right">
           <span class="ovr-badge {% if p.ovr >= 90 %}ovr-90{% elif p.ovr >= 80 %}ovr-80{% elif p.ovr >= 70 %}ovr-70{% else %}ovr-low{% endif %}">{{ p.ovr }}</span>
-          {% if p.is_sold %}<span class="sold-tag">SOLD</span>{% else %}<span class="value-tag">{{ p.value }}</span>{% endif %}
+          {% if p.is_sold %}<span class="sold-tag">SOLD</span>
+          {% elif p.is_skipped %}<span class="skipped-tag">SKIPPED</span>
+          {% else %}<span class="value-tag">{{ p.value }}</span>{% endif %}
         </div>
       </div>
     </a>
