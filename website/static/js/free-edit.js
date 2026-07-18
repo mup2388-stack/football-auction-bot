@@ -1,29 +1,6 @@
 /* ===========================================================================
    FREE EDIT v2 — PES/FL26 style with zones, position detection, GK lock
-   ===========================================================================
-
-   Zones (based on Y position):
-     y > 0.75       → GK zone (LOCKED — only GK can be here, nobody enters)
-     0.50 < y ≤ 0.75 → DEF zone
-     0.25 < y ≤ 0.50 → MID zone
-     y ≤ 0.25        → FWD zone
-
-   Sides (based on X position):
-     x < 0.33   → Left
-     0.33-0.67  → Center
-     x > 0.67   → Right
-
-   Position mapping (zone + side → options):
-     GK+C  → GK (locked)
-     DEF+L → LB
-     DEF+C → CB
-     DEF+R → RB
-     MID+L → LM / LW (choose)
-     MID+C → CDM / CM / CAM (choose)
-     MID+R → RM / RW (choose)
-     FWD+L → LW / LF (choose)
-     FWD+C → ST / CF / SS (SS if another ST exists)
-     FWD+R → RW / RF (choose)
+   MOBILE-SAFE: document-level listeners with { passive: false }
    =========================================================================== */
 
 var FE = {
@@ -32,6 +9,8 @@ var FE = {
   active: false,
   dragging: null,
   pickerEl: null,
+  _docHandlers: false,
+  _pitchRect: null,
 
   start: function () {
     this.active = true;
@@ -42,7 +21,6 @@ var FE = {
     var lineup = window.__LINEUP__ || {};
     var benchKeys = window.__BENCH__ || [];
 
-    // Temporarily allow overflow on pitch so picker popups aren't clipped
     var pitchEl = document.getElementById('pitch');
     if (pitchEl) pitchEl.style.overflow = 'visible';
 
@@ -50,7 +28,6 @@ var FE = {
       for (var key in free) {
         if (ROSTER[key]) {
           var p = ROSTER[key];
-          // Lock GK to center of GK zone
           if (this.isGK(key)) {
             this.pitch.push({ key: key, x: 0.50, y: 0.90, pos: 'GK' });
           } else {
@@ -72,15 +49,11 @@ var FE = {
       for (var i = 0; i < slots.length && i < 11; i++) {
         var pkey = lineup[i];
         if (pkey && ROSTER[pkey]) {
-          // Lock GK to center of GK zone
           if (this.isGK(pkey)) {
             this.pitch.push({ key: pkey, x: 0.50, y: 0.90, pos: 'GK' });
           } else {
             this.pitch.push({
-              key: pkey,
-              x: slots[i].x,
-              y: slots[i].y,
-              pos: slots[i].pos,
+              key: pkey, x: slots[i].x, y: slots[i].y, pos: slots[i].pos,
             });
           }
           usedKeys[pkey] = true;
@@ -88,7 +61,6 @@ var FE = {
       }
       this.bench = benchKeys.filter(function (k) { return !usedKeys[k]; });
     }
-
     this.render();
   },
 
@@ -112,7 +84,6 @@ var FE = {
     return 'C';
   },
 
-  // Returns array of position options for a zone+side
   getPosOptions: function (zone, side) {
     var opts = {
       'GK': { 'L': ['GK'], 'C': ['GK'], 'R': ['GK'] },
@@ -123,18 +94,12 @@ var FE = {
     return (opts[zone] && opts[zone][side]) || ['CM'];
   },
 
-  // Auto-calculate position (first option) for a player at x,y
   calcPos: function (key, x, y) {
     if (this.isGK(key)) return 'GK';
     var zone = this.getZone(y);
     var side = this.getSide(x);
     var options = this.getPosOptions(zone, side);
     return options[0];
-  },
-
-  // Check if two position options need a picker (more than 1 option)
-  needsPicker: function (zone, side) {
-    return this.getPosOptions(zone, side).length > 1;
   },
 
   render: function () {
@@ -144,15 +109,10 @@ var FE = {
     if (!pitch) return;
     pitch.innerHTML = '';
 
-    // Draw faint zone lines
-    var zones = [
-      { y: 25, label: 'FWD' },
-      { y: 60, label: 'MID' },
-      { y: 82, label: 'DEF' },
-    ];
-    zones.forEach(function (z) {
+    // Zone lines
+    [{y:25},{y:60},{y:82}].forEach(function(z){
       var line = document.createElement('div');
-      line.style.cssText = 'position:absolute;left:0;right:0;top:' + z.y + '%;height:1px;background:rgba(255,206,96,0.06);pointer-events:none;';
+      line.style.cssText = 'position:absolute;left:0;right:0;top:'+z.y+'%;height:1px;background:rgba(255,206,96,0.06);pointer-events:none;';
       pitch.appendChild(line);
     });
 
@@ -160,7 +120,6 @@ var FE = {
       var pp = this.pitch[i];
       var p = ROSTER[pp.key];
       if (!p) continue;
-
       var isGK = this.isGK(pp.key);
       var div = document.createElement('div');
       div.className = 'pitch-player';
@@ -168,7 +127,6 @@ var FE = {
       div.dataset.fe = '1';
       div.style.left = (pp.x * 100) + '%';
       div.style.top = (pp.y * 100) + '%';
-
       if (isGK) {
         div.style.cursor = 'not-allowed';
         div.style.opacity = '0.9';
@@ -176,7 +134,6 @@ var FE = {
         div.style.cursor = 'grab';
         div.style.touchAction = 'none';
       }
-
       div.innerHTML =
         '<div class="pitch-link">' +
         '<img src="' + p.face_url + '" class="pitch-face" alt="">' +
@@ -186,7 +143,6 @@ var FE = {
       pitch.appendChild(div);
     }
 
-    // Render bench
     var benchEl = document.getElementById('bench-list');
     if (benchEl) {
       benchEl.innerHTML = '';
@@ -206,22 +162,19 @@ var FE = {
         benchEl.appendChild(bdiv);
       });
     }
-
     if (this.active) this.attachHandlers();
   },
 
   attachHandlers: function () {
     var self = this;
     var pitch = document.getElementById('pitch');
-    var pitchRect = null;
 
     document.querySelectorAll('[data-fe="1"]').forEach(function (el) {
-      // GK can't be dragged
       if (self.isGK(el.dataset.key)) return;
 
       el.addEventListener('pointerdown', function (e) {
         e.preventDefault();
-        pitchRect = pitch.getBoundingClientRect();
+        FE._pitchRect = pitch.getBoundingClientRect();
         self.removePicker();
         self.dragging = {
           key: el.dataset.key,
@@ -230,163 +183,127 @@ var FE = {
           moved: false,
           overPitch: false,
         };
-        el.setPointerCapture(e.pointerId);
+        try { el.setPointerCapture(e.pointerId); } catch (err) {}
         el.style.zIndex = '1000';
         el.style.opacity = '0.85';
-      });
+        el.style.touchAction = 'none';
+      }, { passive: false });
+    });
 
-      el.addEventListener('pointermove', function (e) {
-        if (!self.dragging || self.dragging.el !== el) return;
+    if (!FE._docHandlers) {
+      FE._docHandlers = true;
+
+      // pointermove on DOCUMENT (not element) — critical for mobile where
+      // the finger slides off the original element during drag.
+      // { passive: false } so preventDefault actually blocks page scroll.
+      document.addEventListener('pointermove', function (e) {
+        if (!FE.dragging) return;
         e.preventDefault();
-
-        var px = e.clientX - pitchRect.left;
-        var py = e.clientY - pitchRect.top;
-
-        if (px >= 0 && px <= pitchRect.width && py >= 0 && py <= pitchRect.height) {
-          // Block entering GK zone for non-GK players
-          var yPct = py / pitchRect.height;
-          if (yPct > 0.82) return; // can't enter GK zone
-
-          var x = Math.max(0.03, Math.min(0.97, px / pitchRect.width));
-          var y = Math.max(0.03, Math.min(0.78, py / pitchRect.height)); // cap just below GK zone
+        var rect = FE._pitchRect;
+        var el = FE.dragging.el;
+        var px = e.clientX - rect.left;
+        var py = e.clientY - rect.top;
+        if (px >= 0 && px <= rect.width && py >= 0 && py <= rect.height) {
+          var yPct = py / rect.height;
+          if (yPct > 0.82) return;
+          var x = Math.max(0.03, Math.min(0.97, px / rect.width));
+          var y = Math.max(0.03, Math.min(0.78, py / rect.height));
           el.style.left = (x * 100) + '%';
           el.style.top = (y * 100) + '%';
-          self.dragging.moved = true;
-          self.dragging.overPitch = true;
-          self.dragging.x = x;
-          self.dragging.y = y;
+          FE.dragging.moved = true;
+          FE.dragging.overPitch = true;
+          FE.dragging.x = x;
+          FE.dragging.y = y;
         } else {
-          self.dragging.overPitch = false;
+          FE.dragging.overPitch = false;
         }
-      });
+      }, { passive: false });
 
-      var finishDrag = function (e) {
-        if (!self.dragging || self.dragging.el !== el) return;
-        el.releasePointerCapture(e.pointerId);
+      document.addEventListener('pointerup', function (e) {
+        if (!FE.dragging) return;
+        var el = FE.dragging.el;
+        try { el.releasePointerCapture(e.pointerId); } catch (err) {}
         el.style.zIndex = '';
         el.style.opacity = '';
-
-        var key = self.dragging.key;
-        var wasPitch = self.dragging.isPitch;
-        var isPitch = self.dragging.overPitch;
-
-        if (self.dragging.moved) {
+        var key = FE.dragging.key;
+        var wasPitch = FE.dragging.isPitch;
+        var isPitch = FE.dragging.overPitch;
+        if (FE.dragging.moved) {
           if (wasPitch && !isPitch) {
-            self.moveToBench(key);
-            self.dragging = null;
-            self.render();
+            FE.moveToBench(key); FE.dragging = null; FE.render();
           } else if (!wasPitch && isPitch) {
-            self.moveToPitch(key, self.dragging.x, self.dragging.y);
-            self.dragging = null;
-            self.render();
-            // Show position picker if needed
-            self.maybeShowPicker(key);
+            FE.moveToPitch(key, FE.dragging.x, FE.dragging.y);
+            FE.dragging = null; FE.render(); FE.maybeShowPicker(key);
           } else if (wasPitch && isPitch) {
-            self.updatePosition(key, self.dragging.x, self.dragging.y);
-            self.dragging = null;
-            self.render();
-            self.maybeShowPicker(key);
+            FE.updatePosition(key, FE.dragging.x, FE.dragging.y);
+            FE.dragging = null; FE.render(); FE.maybeShowPicker(key);
           }
-        } else {
-          self.dragging = null;
-        }
-      };
+        } else { FE.dragging = null; }
+      }, { passive: false });
 
-      el.addEventListener('pointerup', finishDrag);
-      el.addEventListener('pointercancel', finishDrag);
-    });
+      document.addEventListener('pointercancel', function () {
+        if (!FE.dragging) return;
+        FE.dragging.el.style.zIndex = '';
+        FE.dragging.el.style.opacity = '';
+        FE.dragging = null;
+      }, { passive: false });
+
+      // iOS Safari fallback: explicitly block touch scroll during drag
+      document.addEventListener('touchmove', function (e) {
+        if (FE.dragging) e.preventDefault();
+      }, { passive: false });
+    }
   },
 
-  // Show position picker if the zone+side has multiple options
   maybeShowPicker: function (key) {
     var pp = null;
     for (var i = 0; i < this.pitch.length; i++) {
       if (this.pitch[i].key === key) { pp = this.pitch[i]; break; }
     }
     if (!pp) return;
-
     var zone = this.getZone(pp.y);
     var side = this.getSide(pp.x);
     var options = this.getPosOptions(zone, side);
-
-    // For FWD center, check if SS should be added
     if (zone === 'FWD' && side === 'C') {
       var cfCount = 0;
       for (var j = 0; j < this.pitch.length; j++) {
         if (this.pitch[j].key === key) continue;
-        var otherPos = this.pitch[j].pos || '';
-        if (['CF'].indexOf(otherPos) >= 0) cfCount++;
+        if (['CF'].indexOf(this.pitch[j].pos || '') >= 0) cfCount++;
       }
-      // SS is already in options, but only show it if there's another CF
-      if (cfCount === 0) {
-        options = ['CF']; // remove SS option if no other CF
-      }
+      if (cfCount === 0) options = ['CF'];
     }
-
-    if (options.length <= 1) {
-      // Auto-assign the single option
-      pp.pos = options[0];
-      this.render();
-      return;
-    }
-
-    // Check if current pos is already one of the options
-    if (options.indexOf(pp.pos) >= 0) {
-      // Current position is valid for this zone, keep it
-      return;
-    }
-
-    // Show picker
+    if (options.length <= 1) { pp.pos = options[0]; this.render(); return; }
+    if (options.indexOf(pp.pos) >= 0) return;
     this.showPicker(key, pp, options);
   },
 
   showPicker: function (key, pp, options) {
     var self = this;
     this.removePicker();
-
     var pitch = document.getElementById('pitch');
     var picker = document.createElement('div');
     picker.className = 'fe-pos-picker';
     picker.style.left = (pp.x * 100) + '%';
     picker.style.top = (pp.y * 100) + '%';
-
-    var playerName = ROSTER[key] ? ROSTER[key].name : '';
-    picker.innerHTML = '<div class="fe-picker-title">' + playerName + '</div>';
-
+    picker.innerHTML = '<div class="fe-picker-title">' + (ROSTER[key] ? ROSTER[key].name : '') + '</div>';
     options.forEach(function (opt) {
       var btn = document.createElement('button');
       btn.className = 'fe-picker-btn';
       btn.textContent = opt;
-      btn.onclick = function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        pp.pos = opt;
-        self.removePicker();
-        self.render();
-      };
+      btn.onclick = function (e) { e.preventDefault(); e.stopPropagation(); pp.pos = opt; self.removePicker(); self.render(); };
       picker.appendChild(btn);
     });
-
-    // Close button
     var closeBtn = document.createElement('button');
     closeBtn.className = 'fe-picker-close';
     closeBtn.textContent = 'X';
-    closeBtn.onclick = function (e) {
-      e.preventDefault();
-      self.removePicker();
-      self.render();
-    };
+    closeBtn.onclick = function (e) { e.preventDefault(); self.removePicker(); self.render(); };
     picker.appendChild(closeBtn);
-
     pitch.appendChild(picker);
     this.pickerEl = picker;
   },
 
   removePicker: function () {
-    if (this.pickerEl) {
-      this.pickerEl.remove();
-      this.pickerEl = null;
-    }
+    if (this.pickerEl) { this.pickerEl.remove(); this.pickerEl = null; }
   },
 
   updatePosition: function (key, x, y) {
@@ -394,13 +311,10 @@ var FE = {
       if (this.pitch[i].key === key) {
         this.pitch[i].x = x;
         this.pitch[i].y = y;
-        // Auto-calc new position if no picker needed
         var zone = this.getZone(y);
         var side = this.getSide(x);
         var options = this.getPosOptions(zone, side);
-        if (options.length === 1) {
-          this.pitch[i].pos = options[0];
-        }
+        if (options.length === 1) this.pitch[i].pos = options[0];
         return;
       }
     }
@@ -422,9 +336,7 @@ var FE = {
     var pos = {};
     for (var i = 0; i < this.pitch.length; i++) {
       pos[this.pitch[i].key] = {
-        x: this.pitch[i].x,
-        y: this.pitch[i].y,
-        pos: this.pitch[i].pos || '',
+        x: this.pitch[i].x, y: this.pitch[i].y, pos: this.pitch[i].pos || '',
       };
     }
     return pos;
@@ -434,16 +346,12 @@ var FE = {
 // Read-only render for visitors
 document.addEventListener('DOMContentLoaded', function () {
   if (window.__IS_OWNER__) return;
-
   var free = window.__FREE_LINEUP__ || {};
   if (Object.keys(free).length === 0) return;
-
   var pitch = document.getElementById('pitch');
   if (!pitch) return;
-
   var label = document.getElementById('formation-label');
   if (label) label.textContent = 'CUSTOM FORMATION';
-
   pitch.style.overflow = 'visible';
   pitch.innerHTML = '';
   for (var key in free) {
@@ -461,7 +369,6 @@ document.addEventListener('DOMContentLoaded', function () {
       '<span class="pitch-player-pos">' + (pos.pos || p.pos || '') + '</span></a>';
     pitch.appendChild(div);
   }
-
   var benchEl = document.getElementById('bench-list');
   if (!benchEl) return;
   var bench = (window.__BENCH__ || []).filter(function (k) { return !free[k]; });

@@ -137,6 +137,15 @@ class Auction:
             bal = E.get_balance(self.guild_id, member.id)
             return False, f"Can't afford that. Balance: **£{bal:,}**."
 
+        # Max squad size cap (15 players)
+        MAX_SQUAD_SIZE = 15
+        current_size = E.squad_count(self.guild_id, member.id)
+        if current_size >= MAX_SQUAD_SIZE:
+            return False, (
+                f"Your squad is full (**{MAX_SQUAD_SIZE}/15**). "
+                f"You can't buy more players. Use `/dump` or `/trade` to make room."
+            )
+
         # Squad-needs max bid - now position-aware
         try:
             player_group = self.player.get("group", "")

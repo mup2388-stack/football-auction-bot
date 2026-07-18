@@ -855,6 +855,11 @@ def can_bid(guild_id: int, user_id: int, player: dict, amount: int) -> tuple[boo
         if min_ovr is not None and int(player.get("ovr") or 0) < int(min_ovr):
             return False, f"Your card only allows players rated **{min_ovr}+**."
 
+        # max OVR restriction (can't bid ABOVE this rating)
+        max_ovr = params.get("max_ovr")
+        if max_ovr is not None and int(player.get("ovr") or 0) > int(max_ovr):
+            return False, f"Your card bans bidding on players above **{max_ovr}** OVR."
+
         ignore_icons = bool(params.get("ignore_icons"))
         is_ic = _is_icon(player)
         age = player.get("age")
@@ -863,7 +868,11 @@ def can_bid(guild_id: int, user_id: int, player: dict, amount: int) -> tuple[boo
         except (TypeError, ValueError):
             age = None
 
-        if age is not None and not (ignore_icons and is_ic):
+        # Age restrictions only apply to RESTRICTION cards.
+        # Goal cards (buy_age_under) carry max_age as a completion condition,
+        # NOT a bid blocker — they should be able to bid on anyone.
+        card_ctype = meta.get("type") or card.get("type", "")
+        if card_ctype == "restriction" and age is not None and not (ignore_icons and is_ic):
             if params.get("max_age") is not None and age > int(params["max_age"]):
                 return False, f"Your card bans players over {params['max_age']}."
             if params.get("min_age") is not None and age < int(params["min_age"]):

@@ -1,155 +1,249 @@
 """
-Static card definitions — Management (today's deck) + Finance.
+Static card definitions — Management (TONIGHT'S deck) + Finance.
 
-Money amounts are full pounds (e.g. 90_000_000 = £90M).
+TONIGHT'S POOL: 60 players. See organizer's task list for details.
 
-TODAY'S POOL: 65 players. Heavy CB/CDM/CAM. Some LW/RW. A few ST/GK.
-Icons: David Silva, John Barnes, Mascherano, Pablo Aimar, Gattuso, Paul Scholes,
-Peter Schmeichel, Lassana Diarra, Cristian Chivu, Verón, Frank Rijkaard, Chiellini.
+For career-achievement tasks (WC goals, UCL wins, IG followers, career goals,
+transfers): dm_extra says "Ask admin" — never list specific players unless 100% sure.
 """
 
 # ---------------------------------------------------------------------------
-# MANAGEMENT — 32 unique cards
+# MANAGEMENT — 32 unique cards (TONIGHT'S TASKS)
 # ---------------------------------------------------------------------------
 
 MANAGEMENT_CARDS = [
-    # --- POWER CARDS (2) ---
+    # 1
     {
-        "key": "power_steal_7",
-        "text": "You can steal one player from anyone for the price they paid. After using it, you can't bid for the next 7 auctions.",
-        "type": "power",
-        "params": {"power": "steal", "ban_after_use": 7},
+        "key": "buy_under_25",
+        "text": "Buy at least one player aged 25 or under.",
+        "type": "goal",
+        "check": "buy_age_under",
+        "params": {"max_age": 25, "ignore_icons": True},
         "dm_extra": (
-            "IMPORTANT RULES:\n"
-            "1. The player you steal MUST have been bought in TODAY'S auction only.\n"
-            "2. You must use this BEFORE the finance cards are dropped.\n"
-            "3. Tell an admin you have this card. The admin will announce when finance cards are coming.\n"
-            "4. You pay the same price they bought him for.\n"
-            "5. Then you sit out 7 auctions.\n"
-            "Confused? DM an admin."
+            "Win at least ONE player aged 25 or under. Options:\n"
+            "Pau Cubarsí (18), Désiré Doué (20), Lewis Hall (21), Adam Wharton (21), "
+            "Gavi (21), Harvey Elliott (22), Marc Casadó (22), Šeško (22), Xavi Simons (22), "
+            "Calafiori (23), Udogie (23), Barcola (23), Branthwaite (23), Cole Palmer (23), "
+            "Gravenberch (23), Vlahović (25), Bellanova (25), De Cuyper (25), Gibbs-White (25)."
         ),
     },
+    # 2
     {
-        "key": "power_swap_half",
-        "text": "Swap one of your players (82+ OVR) with someone else's player. You pay them half of what they paid + give them your player.",
-        "type": "power",
-        "params": {"power": "swap", "min_give_ovr": 82},
-        "dm_extra": (
-            "IMPORTANT RULES:\n"
-            "1. The player you take from someone MUST have been bought in TODAY'S auction only.\n"
-            "2. The player you give MUST be 82+ OVR (can be from an older auction).\n"
-            "3. You pay them HALF of what they paid for the player you're taking.\n"
-            "4. You must use this BEFORE the finance cards are dropped.\n"
-            "5. Tell an admin you have this card. The admin will announce when finance cards are coming.\n"
-            "Confused? DM an admin."
-        ),
+        "key": "no_attackers",
+        "text": "You can't buy any attackers tonight.",
+        "type": "restriction",
+        "params": {"ban_groups": ["FWD"]},
+        "dm_extra": "No ST, CF, LW, RW or LF/RF. Midfielders, defenders and GK are fine.",
     },
-    # --- GOALS (20) ---
+    # 3
     {
-        "key": "buy_three_players",
+        "key": "buy_three",
         "text": "Buy at least 3 players today.",
         "type": "goal",
         "check": "buy_count",
         "params": {"count": 3},
         "dm_extra": "Win 3 auctions today. Auto-completes when you hit 3.",
     },
+    # 4
     {
-        "key": "buy_ucl_winner",
-        "text": "Buy 1 Champions League winner.",
+        "key": "max_bid_90m",
+        "text": "You can't spend more than £90M on a single player.",
+        "type": "restriction",
+        "params": {"max_bid": 90_000_000},
+        "dm_extra": "Single bids over £90M are blocked.",
+    },
+    # 5
+    {
+        "key": "buy_2x_ucl",
+        "text": "Buy a player who has won the Champions League more than once.",
         "type": "goal_manual",
         "params": {},
-        "dm_extra": "Win a player who has won the UEFA Champions League. Options: Raphinha, Hakimi, Rúben Dias, Neymar, Chiellini, Rijkaard, Mascherano, Gattuso, Paul Scholes, David Silva, Brozović, John Barnes, Lassana Diarra, Peter Schmeichel. Admin marks complete.",
+        "dm_extra": "If unsure which players qualify, ask the admin.",
     },
+    # 6
     {
         "key": "buy_wc_winner",
         "text": "Buy 1 World Cup winner.",
         "type": "goal_manual",
         "params": {},
-        "dm_extra": "Buy a player who has won the FIFA World Cup. Options: Emiliano Martínez, Neymar, Hakimi, Chiellini, Rijkaard, Peter Schmeichel, Gattuso, Paul Scholes. Not sure? Ask admin.",
+        "dm_extra": "If unsure which players qualify, ask the admin.",
     },
+    # 7
     {
-        "key": "buy_multi_league_titles",
+        "key": "buy_multi_titles",
         "text": "Buy a player who has won multiple league titles.",
         "type": "goal_manual",
         "params": {},
-        "dm_extra": "The player must have won 2+ top-flight league titles. Options: Rúben Dias, Hakimi, Paul Scholes, David Silva, Rijkaard, Chiellini, Mascherano, Brozović, Koke. Admin marks complete.",
+        "dm_extra": "If unsure which players qualify, ask the admin.",
     },
+    # 8
+    {
+        "key": "spend_cap_250m",
+        "text": "You can't spend more than £250M in total tonight.",
+        "type": "restriction",
+        "params": {"max_night_spend": 250_000_000},
+        "dm_extra": "All your winning bids add up. Over £250M total is blocked.",
+    },
+    # 9
     {
         "key": "buy_brazilian",
         "text": "Buy 1 Brazilian player.",
         "type": "goal",
         "check": "buy_country",
         "params": {"country": "Brazil"},
-        "dm_extra": "Win any Brazilian. Options: Neymar, Gabriel Magalhães, Martinelli, Raphinha. Auto-completes.",
+        "dm_extra": "Win any Brazilian. Options: Kaka (88), Roberto Carlos (88), Richarlison (82), Marcelo (80), Douglas Luiz (80).",
     },
+    # 10
     {
         "key": "buy_icon",
         "text": "Buy 1 icon.",
         "type": "goal",
         "check": "buy_icon",
         "params": {},
-        "dm_extra": "Win an ICON. Options: David Silva, John Barnes, Mascherano, Pablo Aimar, Gattuso, Paul Scholes, Peter Schmeichel, Lassana Diarra, Chivu, Verón, Rijkaard, Chiellini. Auto-completes.",
+        "dm_extra": (
+            "Win any ICON. Options: Maradona (97), Rijkaard (92), Dalglish (91), Kaka (88), "
+            "Roberto Carlos (88), Desailly (87), Zanetti (87), Brehme (86), Pirès (86), "
+            "Verón (85), Okocha (85), Lamela (85), Hamšík (85), Agger (85), Lev Yashin (84), "
+            "Abidal (84), Jorge Campos (84), Insúa (84)."
+        ),
     },
+    # 11
     {
-        "key": "buy_german",
-        "text": "Buy 1 German player.",
-        "type": "goal",
-        "check": "buy_country",
-        "params": {"country": "Germany"},
-        "dm_extra": "Win any German player. Options: Willi Orbán, Felix Nmecha. Check nationality before bidding. Auto-completes.",
+        "key": "max_ovr_86",
+        "text": "You can't buy players above 86 rating.",
+        "type": "restriction",
+        "params": {"max_ovr": 86},
+        "dm_extra": "Players rated 87+ are blocked. Bargain hunting time.",
     },
+    # 12
+    {
+        "key": "no_task_a",
+        "text": "No task. Bid freely.",
+        "type": "free",
+        "params": {},
+        "dm_extra": "Free pass. No goal, no fine. Just play.",
+    },
+    # 13
+    {
+        "key": "max_bid_170m_a",
+        "text": "You can't spend more than £170M on a single player.",
+        "type": "restriction",
+        "params": {"max_bid": 170_000_000},
+        "dm_extra": "Single bids over £170M are blocked.",
+    },
+    # 14
+    {
+        "key": "no_task_b",
+        "text": "No task. Bid freely.",
+        "type": "free",
+        "params": {},
+        "dm_extra": "Free pass. No goal, no fine. Just play.",
+    },
+    # 15
+    {
+        "key": "no_task_c",
+        "text": "No task. Bid freely.",
+        "type": "free",
+        "params": {},
+        "dm_extra": "Free pass. No goal, no fine. Just play.",
+    },
+    # 16
+    {
+        "key": "no_task_d",
+        "text": "No task. Bid freely.",
+        "type": "free",
+        "params": {},
+        "dm_extra": "Free pass. No goal, no fine. Just play.",
+    },
+    # 17
+    {
+        "key": "ban_first_3_a",
+        "text": "You can't bid for the first 3 auctions today.",
+        "type": "restriction",
+        "params": {"ban_first_n": 3},
+        "dm_extra": "Sit out the first 3 finished auctions, then bid normal.",
+    },
+    # 18
     {
         "key": "buy_5m_insta",
         "text": "Buy a player with more than 5M Instagram followers.",
         "type": "goal_manual",
         "params": {},
-        "dm_extra": "The player's real IG must be over 5M followers. Options: Neymar, Raphinha, Hakimi, Paul Scholes, David Silva, Mahrez, Kvaratskhelia. Not sure? Ask admin.",
+        "dm_extra": "If unsure which players qualify, ask the admin.",
     },
+    # 19
     {
         "key": "buy_golden_boot",
         "text": "Buy a player who has won the Golden Boot for any league.",
         "type": "goal_manual",
         "params": {},
-        "dm_extra": "Top scorer award in a recognized top league. Options: Guirassy, Raphinha, Mahrez, Kvaratskhelia, Neymar, Paul Scholes, Suárez (not today). Admin marks complete.",
+        "dm_extra": "If unsure which players qualify, ask the admin.",
     },
+    # 20
     {
-        "key": "buy_laliga",
-        "text": "Buy a player from La Liga.",
-        "type": "goal",
-        "check": "buy_la_liga",
-        "params": {},
-        "dm_extra": "Win a player whose current club is a La Liga side. Options: Ferran Torres, Raphinha, Oyarzabal, Arda Güler, Koke, Diego López, Dani Vivian. Icons don't count as La Liga. Auto-completes.",
+        "key": "max_bid_170m_b",
+        "text": "You can't spend more than £170M on a single player.",
+        "type": "restriction",
+        "params": {"max_bid": 170_000_000},
+        "dm_extra": "Single bids over £170M are blocked.",
     },
+    # 21
     {
-        "key": "buy_current_player",
+        "key": "buy_current",
         "text": "Buy 1 current player (not an icon).",
         "type": "goal",
         "check": "buy_active",
         "params": {},
         "dm_extra": "Win any non-ICON player. Auto-completes.",
     },
+    # 22
+    {
+        "key": "ban_first_3_b",
+        "text": "You can't bid for the first 3 auctions today.",
+        "type": "restriction",
+        "params": {"ban_first_n": 3},
+        "dm_extra": "Sit out the first 3 finished auctions, then bid normal.",
+    },
+    # 23
     {
         "key": "buy_copa_america",
         "text": "Buy 1 Copa América winner.",
         "type": "goal_manual",
         "params": {},
-        "dm_extra": "Player must have won the Copa América. Options: Neymar, Mascherano, Raphinha. Not sure? Ask admin.",
+        "dm_extra": "If unsure which players qualify, ask the admin.",
     },
+    # 24
     {
-        "key": "buy_100_goals",
-        "text": "Sign a player who has more than 100 career goals.",
+        "key": "max_bid_pct_40",
+        "text": "You can't spend more than 40% of your budget on a single player.",
+        "type": "restriction",
+        "params": {"max_bid_pct": 0.40},
+        "dm_extra": "If you have £800M left, max bid is £320M. If £200M left, max is £80M. Scales with balance.",
+    },
+    # 25
+    {
+        "key": "buy_150_goals",
+        "text": "Sign a player who has more than 150 career goals.",
         "type": "goal_manual",
         "params": {},
-        "dm_extra": "100+ senior career goals. Options: Neymar, Guirassy, Mahrez, Paul Scholes, David Silva, Rafa Silva, Peter Schmeichel (no, GK). Admin marks complete.",
+        "dm_extra": "If unsure which players qualify, ask the admin.",
     },
+    # 26
     {
         "key": "buy_midfielder",
         "text": "Sign 1 midfielder.",
         "type": "goal",
         "check": "buy_group",
         "params": {"group": "MID"},
-        "dm_extra": "Win any MID player (CM/CDM/CAM/LM/RM). Tons today: Rice, Guendouzi, Sancet, Maddison, Arda Güler, Koke, McTominay, Mascherano, Gattuso, Paul Scholes, Rijkaard, etc. Auto-completes.",
+        "dm_extra": (
+            "Win any MID (CM/CDM/CAM/LM/RM). Options: Rijkaard (92), Kaka (88), Pirès (86 LM), "
+            "Cole Palmer (86), Verón (85), KDB (85), Okocha (85), Lamela (85), Hamšík (85), "
+            "Zubimendi (84), Gravenberch (84), Brozović (83), Aleix García (83), Xavi Simons (83), "
+            "Isco (83), Gibbs-White (83), Verón (85), Parejo (82), Locatelli (82), Gavi (82), "
+            "Arrascaeta (82), Ward-Prowse (80), Elliott (80), Douglas Luiz (80)."
+        ),
     },
+    # 27
     {
         "key": "buy_under_50m",
         "text": "Sign 1 player for under £50M (winning bid under £50M).",
@@ -158,51 +252,7 @@ MANAGEMENT_CARDS = [
         "params": {"max_price": 50_000_000},
         "dm_extra": "Your winning bid must be under £50M. Auto-completes.",
     },
-    {
-        "key": "buy_under_26",
-        "text": "Buy a player under 26 years old.",
-        "type": "goal",
-        "check": "buy_age_under",
-        "params": {"max_age": 25, "ignore_icons": True},
-        "dm_extra": "Age 25 or younger. Icons don't count. Options: Kvaratskhelia, Arda Güler, Hincapié, Kudus, Kayode, Martinelli. Auto-completes.",
-    },
-    {
-        "key": "buy_86_plus",
-        "text": "Buy a 86+ rated player.",
-        "type": "goal",
-        "check": "buy_ovr_min",
-        "params": {"ovr": 86},
-        "dm_extra": "Win any 86+ OVR player. Options: Rice (87), Gabriel (87), Raphinha (88), Guirassy (86), Kvaratskhelia (86), Rúben Dias (86), Hakimi (86), Chiellini (86), Mascherano (86), Paul Scholes (87), Lassana Diarra (88), Chivu (89), Peter Schmeichel (90), Rijkaard (92). Auto-completes.",
-    },
-    # --- FREE PASSES (5) ---
-    {
-        "key": "no_task_a",
-        "text": "No task. Bid freely.",
-        "type": "free",
-        "params": {},
-        "dm_extra": "Free pass. No goal, no fine. Just play.",
-    },
-    {
-        "key": "no_task_b",
-        "text": "No task. Bid freely.",
-        "type": "free",
-        "params": {},
-        "dm_extra": "Free pass. No goal, no fine. Just play.",
-    },
-    {
-        "key": "no_task_c",
-        "text": "No task. Bid freely.",
-        "type": "free",
-        "params": {},
-        "dm_extra": "Free pass. No goal, no fine. Just play.",
-    },
-    {
-        "key": "no_task_d",
-        "text": "No task. Bid freely.",
-        "type": "free",
-        "params": {},
-        "dm_extra": "Free pass. No goal, no fine. Just play.",
-    },
+    # 28
     {
         "key": "no_task_e",
         "text": "No task. Bid freely.",
@@ -210,62 +260,49 @@ MANAGEMENT_CARDS = [
         "params": {},
         "dm_extra": "Free pass. No goal, no fine. Just play.",
     },
-    # --- RESTRICTIONS (5) ---
+    # 29
     {
-        "key": "max_bid_90m",
-        "text": "You can't spend more than £90M on a single player.",
-        "type": "restriction",
-        "params": {"max_bid": 90_000_000},
-        "dm_extra": "Bids over £90M on one player are blocked. Plenty of good options under £90M.",
+        "key": "buy_under_26",
+        "text": "Buy a player under 26 years old.",
+        "type": "goal",
+        "check": "buy_age_under",
+        "params": {"max_age": 25, "ignore_icons": True},
+        "dm_extra": (
+            "Win a player aged 25 or younger. Options:\n"
+            "Pau Cubarsí (18), Désiré Doué (20), Lewis Hall (21), Adam Wharton (21), "
+            "Gavi (21), Harvey Elliott (22), Marc Casadó (22), Šeško (22), Xavi Simons (22), "
+            "Calafiori (23), Udogie (23), Barcola (23), Branthwaite (23), Cole Palmer (23), "
+            "Gravenberch (23), Vlahović (25), Bellanova (25), De Cuyper (25), Gibbs-White (25)."
+        ),
     },
+    # 30
     {
-        "key": "spend_cap_250m",
-        "text": "You can't spend more than £250M in total today.",
-        "type": "restriction",
-        "params": {"max_night_spend": 250_000_000},
-        "dm_extra": "All your winning bids today add up. Over £250M total is blocked.",
+        "key": "buy_86_plus",
+        "text": "Buy a 86+ rated player.",
+        "type": "goal",
+        "check": "buy_ovr_min",
+        "params": {"ovr": 86},
+        "dm_extra": (
+            "Win any 86+ OVR player. Options: Maradona (97), Rijkaard (92), Dalglish (91), "
+            "Kaka (88), Harry Kane (88), Roberto Carlos (88), Desailly (87), Zanetti (87), "
+            "Brehme (86), Pirès (86), Cole Palmer (86)."
+        ),
     },
-    {
-        "key": "no_bid_first_3_a",
-        "text": "You can't bid for the first 3 auctions today.",
-        "type": "restriction",
-        "params": {"ban_first_n": 3},
-        "dm_extra": "Sit out the first 3 finished auctions, then bid normal.",
-    },
-    {
-        "key": "no_bid_first_3_b",
-        "text": "You can't bid for the first 3 auctions today.",
-        "type": "restriction",
-        "params": {"ban_first_n": 3},
-        "dm_extra": "Sit out the first 3 finished auctions, then bid normal.",
-    },
-    {
-        "key": "max_bid_pct_40",
-        "text": "You can't spend more than 40% of your current budget on a single player.",
-        "type": "restriction",
-        "params": {"max_bid_pct": 0.40},
-        "dm_extra": "If you have £800M left, your max bid is £320M. If you have £200M left, max is £80M. Scales with your balance.",
-    },
-    {
-        "key": "max_bid_170m",
-        "text": "You can't spend more than £170M on a single player.",
-        "type": "restriction",
-        "params": {"max_bid": 170_000_000},
-        "dm_extra": "Bids over £170M on one player are blocked.",
-    },
+    # 31
     {
         "key": "max_bid_110m",
         "text": "The max you can spend on a player is £110M.",
         "type": "restriction",
         "params": {"max_bid": 110_000_000},
-        "dm_extra": "Bids over £110M on one player are blocked.",
+        "dm_extra": "Single bids over £110M are blocked.",
     },
+    # 32
     {
-        "key": "min_ovr_84",
-        "text": "You can't buy a player below 84 rated.",
+        "key": "min_ovr_85",
+        "text": "You can't buy players below 85 rated.",
         "type": "restriction",
-        "params": {"min_ovr": 84},
-        "dm_extra": "You can only bid on players with 84+ OVR. Most of today's top players qualify.",
+        "params": {"min_ovr": 85},
+        "dm_extra": "Only 85+ OVR signings allowed.",
     },
 ]
 

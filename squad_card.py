@@ -533,31 +533,33 @@ def render_squad_card(guild_id, member_name, user_id, squad, avatar_url=None):
     CH_CARD = CH
 
     if free_positions:
-        # Auto-merge: add any squad players not in free_positions
-        # at their formation slot positions
-        merged_positions = dict(free_positions)
-        formation_slots = FM.all_slots(FM.get_formation(formation_name))
+        # Free-edit rendering (PES-style custom positions):
+        #   1. DEDUPE: keep only real squad members, no ghosts/dupes
+        #   2. CAP: hard 11 max — keep highest-OVR players, rest go to bench
+        #   3. SMART SHRINK: only shrink if there's REAL overlap (uses actual
+        #      card size for detection, not a different base size — that was
+        #      the old bug). Min size 80% so cards stay readable.
         squad_keys = {p["key"] for p in squad}
-        slot_idx = 0
-        for slot_info, player in lineup:
-            if player and player["key"] in squad_keys and player["key"] not in merged_positions:
-                if slot_idx < len(formation_slots):
-                    s = formation_slots[slot_idx]
-                    merged_positions[player["key"]] = {
-                        "x": s["x"], "y": s["y"],
-                        "pos": s["pos"],
-                    }
-                    slot_idx += 1
+        clean_pos = {}
+        for k, v in free_positions.items():
+            if k in squad_keys and k not in clean_pos:
+                clean_pos[k] = v
 
-        # Smart overlap detection: reduce card size if cards overlap
-        # Calculate pixel positions for all players
+        # Hard cap at 11 — keep the highest OVR players on pitch
+        if len(clean_pos) > 11:
+            squad_by_key = {p["key"]: p for p in squad}
+            sorted_keys = sorted(
+                clean_pos.keys(),
+                key=lambda k: squad_by_key.get(k, {}).get("ovr", 0),
+                reverse=True
+            )
+            clean_pos = {k: clean_pos[k] for k in sorted_keys[:11]}
+
+        # Calculate pixel positions using ACTUAL card size (CW x CH_CARD)
+        squad_by_key = {p["key"]: p for p in squad}
         positions_px = []
-        for pkey, pos_data in merged_positions.items():
-            player = None
-            for p in squad:
-                if p["key"] == pkey:
-                    player = p
-                    break
+        for pkey, pos_data in clean_pos.items():
+            player = squad_by_key.get(pkey)
             if not player:
                 continue
             cx = PITCH_LEFT + pitch_w * pos_data["x"]
@@ -568,52 +570,44 @@ def render_squad_card(guild_id, member_name, user_id, squad, avatar_url=None):
                 "player": player,
                 "x": card_x,
                 "y": card_y,
-                "w": CW,
-                "h": CH_CARD,
                 "pos_data": pos_data,
             })
 
-        # Check for overlaps and reduce card size if needed
-        def check_overlaps(size_mult):
-            test_w = int(CW_BASE * size_mult)
-            test_h = int(CH_BASE * size_mult)
-            padding = 10
+        # Smart overlap detection — use ACTUAL card size (CW x CH_CARD).
+        # Old bug: detection used CW_BASE (200) but rendering used CW (smaller),
+        # causing false-positive overlaps and unnecessary shrinking.
+        padding = 6  # small gap to tolerate, anything less = real overlap
+
+        def has_overlap(w, h):
             for i in range(len(positions_px)):
                 for j in range(i + 1, len(positions_px)):
                     p1 = positions_px[i]
                     p2 = positions_px[j]
-                    # Recalculate with scaled size
-                    x1 = p1["x"] + (CW - test_w) / 2
-                    y1 = p1["y"] + (CH_CARD - test_h) / 2
-                    x2 = p2["x"] + (CW - test_w) / 2
-                    y2 = p2["y"] + (CH_CARD - test_h) / 2
-                    overlap = not (
-                        x1 + test_w + padding < x2 or
-                        x2 + test_w + padding < x1 or
-                        y1 + test_h + padding < y2 or
-                        y2 + test_h + padding < y1
-                    )
-                    if overlap:
+                    x1 = p1["x"] + (CW - w) / 2
+                    y1 = p1["y"] + (CH_CARD - h) / 2
+                    x2 = p2["x"] + (CW - w) / 2
+                    y2 = p2["y"] + (CH_CARD - h) / 2
+                    if not (x1 + w + padding < x2 or x2 + w + padding < x1 or
+                            y1 + h + padding < y2 or y2 + h + padding < y1):
                         return True
             return False
 
-        # Start at full size, reduce until no overlaps (min 50% size)
+        # Find smallest size that has no overlaps (min 80%)
         size_mult = 1.0
-        while size_mult > 0.5 and check_overlaps(size_mult):
+        while size_mult > 0.80 and has_overlap(int(CW * size_mult), int(CH_CARD * size_mult)):
             size_mult -= 0.05
+        final_cw = int(CW * size_mult)
+        final_ch = int(CH_CARD * size_mult)
 
-        final_cw = int(CW_BASE * size_mult)
-        final_ch = int(CH_BASE * size_mult)
-
-        # Render with smart size
+        # Render at the resolved size
         for item in positions_px:
             player = item["player"]
             pos_data = item["pos_data"]
-            # Center the scaled card on the same position
             card_x = item["x"] + (CW - final_cw) / 2
             card_y = item["y"] + (CH_CARD - final_ch) / 2
             card_y = max(bar_h + 10, min(card_y, H - final_ch - 80))
-            card = build_card(player, final_cw, final_ch, display_pos=pos_data.get("pos", player.get("position", "")))
+            card = build_card(player, final_cw, final_ch,
+                              display_pos=pos_data.get("pos", player.get("position", "")))
             paste_shadow(canvas, card, (card_x, card_y))
     else:
         # Normal formation mode
