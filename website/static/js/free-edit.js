@@ -170,7 +170,7 @@ var FE = {
     var pitch = document.getElementById('pitch');
 
     document.querySelectorAll('[data-fe="1"]').forEach(function (el) {
-      if (self.isGK(el.dataset.key)) return;
+      var isThisGK = self.isGK(el.dataset.key);
 
       el.addEventListener('pointerdown', function (e) {
         e.preventDefault();
@@ -180,6 +180,7 @@ var FE = {
           key: el.dataset.key,
           el: el,
           isPitch: el.classList.contains('pitch-player'),
+          isGK: isThisGK,
           moved: false,
           overPitch: false,
         };
@@ -203,6 +204,14 @@ var FE = {
         var el = FE.dragging.el;
         var px = e.clientX - rect.left;
         var py = e.clientY - rect.top;
+        // GK special: allow visual drag anywhere but never place on pitch
+        if (FE.dragging.isGK) {
+          el.style.left = Math.max(0, Math.min(100, (px / rect.width) * 100)) + '%';
+          el.style.top = Math.max(0, Math.min(100, (py / rect.height) * 100)) + '%';
+          FE.dragging.moved = true;
+          FE.dragging.overPitch = false;
+          return;
+        }
         if (px >= 0 && px <= rect.width && py >= 0 && py <= rect.height) {
           var yPct = py / rect.height;
           if (yPct > 0.82) return;
@@ -229,7 +238,18 @@ var FE = {
         var wasPitch = FE.dragging.isPitch;
         var isPitch = FE.dragging.overPitch;
         if (FE.dragging.moved) {
-          if (wasPitch && !isPitch) {
+          if (FE.dragging.isGK) {
+            // GK: check if dropped outside pitch bounds
+            var rect = FE._pitchRect;
+            var px = e.clientX - rect.left;
+            var py = e.clientY - rect.top;
+            if (px < 0 || px > rect.width || py < 0 || py > rect.height) {
+              FE.moveToBench(key); FE.dragging = null; FE.render();
+            } else {
+              // dropped on pitch — snap back, do nothing
+              FE.dragging = null; FE.render();
+            }
+          } else if (wasPitch && !isPitch) {
             FE.moveToBench(key); FE.dragging = null; FE.render();
           } else if (!wasPitch && isPitch) {
             FE.moveToPitch(key, FE.dragging.x, FE.dragging.y);
