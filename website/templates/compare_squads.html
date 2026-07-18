@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Compare Squads - AuctionBot{% endblock %}
+
+{% block content %}
+<div class="scq-page" id="scq-root">
+
+  <div class="scq-head">
+    <h1 class="scq-title text-3d">Squad compare</h1>
+    <p class="scq-sub">Pick two managers and settle the debate.</p>
+  </div>
+
+  {# ===== CUSTOM DROPDOWNS ===== #}
+  <div class="scq-select-bar">
+    <div class="scq-pick">
+      <span class="scq-pick-label">Team 1</span>
+      <div class="scq-dd" id="scq-dd-1">
+        <div class="scq-dd-trigger" id="scq-trigger-1">
+          <span class="scq-dd-current" id="scq-current-1">
+            <span class="scq-dd-placeholder">Select team 1</span>
+          </span>
+          <svg class="scq-dd-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="scq-dd-list" id="scq-list-1">
+          {% for m in managers %}
+          <div class="scq-dd-option" data-uid="{{ m.user_id }}" data-logo="{{ m.logo_url }}" data-name="{{ m.team_name }}" data-size="{{ m.squad_size }}">
+            <img src="{{ m.logo_url }}" class="scq-dd-logo" alt="">
+            <span class="scq-dd-team">{{ m.team_name }}</span>
+            <span class="scq-dd-count">{{ m.squad_size }}p</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="scq-vs-mini">vs</div>
+
+    <div class="scq-pick">
+      <span class="scq-pick-label">Team 2</span>
+      <div class="scq-dd" id="scq-dd-2">
+        <div class="scq-dd-trigger" id="scq-trigger-2">
+          <span class="scq-dd-current" id="scq-current-2">
+            <span class="scq-dd-placeholder">Select team 2</span>
+          </span>
+          <svg class="scq-dd-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="scq-dd-list" id="scq-list-2">
+          {% for m in managers %}
+          <div class="scq-dd-option" data-uid="{{ m.user_id }}" data-logo="{{ m.logo_url }}" data-name="{{ m.team_name }}" data-size="{{ m.squad_size }}">
+            <img src="{{ m.logo_url }}" class="scq-dd-logo" alt="">
+            <span class="scq-dd-team">{{ m.team_name }}</span>
+            <span class="scq-dd-count">{{ m.squad_size }}p</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ===== RESULT AREA (filled by AJAX) ===== #}
+  <div id="scq-result">
+    {% if comp %}
+      {% include 'compare_squads_result.html' %}
+    {% else %}
+      <div class="empty"><h3>Pick two managers</h3><p>Select both teams above.</p></div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  var slot1 = null, slot2 = null;
+  var busy = false;
+
+  // Dropdown toggle
+  function toggleDD(slot) {
+    var list = document.getElementById('scq-list-' + slot);
+    var dd = document.getElementById('scq-dd-' + slot);
+    var open = list.classList.contains('open');
+    // close both
+    document.getElementById('scq-list-1').classList.remove('open');
+    document.getElementById('scq-list-2').classList.remove('open');
+    document.getElementById('scq-dd-1').classList.remove('focused');
+    document.getElementById('scq-dd-2').classList.remove('focused');
+    if (!open) {
+      list.classList.add('open');
+      dd.classList.add('focused');
+    }
+  }
+
+  // Pick a team from dropdown
+  function pickTeam(slot, uid, logo, name) {
+    // Update the trigger display
+    var el = document.getElementById('scq-current-' + slot);
+    el.innerHTML = '<img src="' + logo + '" class="scq-dd-logo" alt=""><span>' + name + '</span>';
+
+    // Close dropdown
+    document.getElementById('scq-list-' + slot).classList.remove('open');
+    document.getElementById('scq-dd-' + slot).classList.remove('focused');
+
+    // Store selection
+    if (slot === 1) slot1 = uid;
+    else slot2 = uid;
+
+    // If both picked, fetch comparison via AJAX (NO RELOAD)
+    if (slot1 && slot2 && slot1 !== slot2) {
+      fetchCompare();
+    } else {
+      // Just one picked — show waiting state
+      document.getElementById('scq-result').innerHTML =
+        '<div class="empty"><h3>Pick the other team</h3></div>';
+    }
+  }
+
+  // AJAX fetch — swaps only the result area, no page reload
+  function fetchCompare() {
+    if (busy) return;
+    busy = true;
+    document.getElementById('scq-result').innerHTML =
+      '<div class="empty"><h3>Loading...</h3></div>';
+
+    fetch('/compare-squads?t1=' + slot1 + '&t2=' + slot2, {
+      headers: { 'X-Scq-Nav': '1' },
+      credentials: 'same-origin'
+    })
+      .then(function(r) { return r.text(); })
+      .then(function(html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var incoming = doc.getElementById('scq-result');
+        if (incoming) {
+          document.getElementById('scq-result').innerHTML = incoming.innerHTML;
+        } else {
+          // fallback: extract from scq-page
+          var page = doc.querySelector('.scq-page');
+          if (page) {
+            var duel = page.querySelector('.scq-duel');
+            var stats = page.querySelector('.scq-stats-grid');
+            var rosters = page.querySelector('.scq-rosters');
+            var html_out = '';
+            if (duel) html_out += duel.outerHTML;
+            if (stats) html_out += stats.outerHTML;
+            if (rosters) html_out += rosters.outerHTML;
+            document.getElementById('scq-result').innerHTML = html_out || '<div class="empty"><h3>No data</h3></div>';
+          }
+        }
+      })
+      .catch(function() {
+        // fallback to full navigation
+        window.location.href = '/compare-squads?t1=' + slot1 + '&t2=' + slot2;
+      })
+      .finally(function() { busy = false; });
+  }
+
+  // Wire up triggers
+  document.getElementById('scq-trigger-1').addEventListener('click', function(e) {
+    e.stopPropagation();
+    toggleDD(1);
+  });
+  document.getElementById('scq-trigger-2').addEventListener('click', function(e) {
+    e.stopPropagation();
+    toggleDD(2);
+  });
+
+  // Wire up all dropdown options
+  document.querySelectorAll('.scq-dd-option').forEach(function(opt) {
+    opt.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var dd = this.closest('.scq-dd');
+      var slot = dd.id === 'scq-dd-1' ? 1 : 2;
+      var uid = this.dataset.uid;
+      var logo = this.dataset.logo;
+      var name = this.dataset.name;
+      pickTeam(slot, uid, logo, name);
+    });
+  });
+
+  // Close on outside click
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.scq-dd')) {
+      document.getElementById('scq-list-1').classList.remove('open');
+      document.getElementById('scq-list-2').classList.remove('open');
+      document.getElementById('scq-dd-1').classList.remove('focused');
+      document.getElementById('scq-dd-2').classList.remove('focused');
+    }
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,71 @@
+{# Comparison result partial — included by compare_squads.html AND fetched via AJAX #}
+
+{# ===== TEAM HEADER ===== #}
+<div class="scq-duel">
+  <div class="scq-duel-side scq-a">
+    <img src="{{ team_logo_url(comp.s1.team_name) }}" class="scq-duel-logo" alt="">
+    <div>
+      <div class="scq-duel-name">{{ comp.s1.team_name }}</div>
+      <div class="scq-duel-info">{{ comp.s1.squad_size }} players / {{ comp.s1.xi_rating }} XI</div>
+    </div>
+  </div>
+  <div class="scq-duel-vs">VS</div>
+  <div class="scq-duel-side scq-b">
+    <img src="{{ team_logo_url(comp.s2.team_name) }}" class="scq-duel-logo" alt="">
+    <div>
+      <div class="scq-duel-name">{{ comp.s2.team_name }}</div>
+      <div class="scq-duel-info">{{ comp.s2.squad_size }} players / {{ comp.s2.xi_rating }} XI</div>
+    </div>
+  </div>
+</div>
+
+{# ===== STATS SIDE BY SIDE ===== #}
+<div class="scq-stats-grid">
+  <div class="scq-stat-block">
+    <h2 class="scq-block-title">Key Stats</h2>
+    {% for row in comp.stat_rows %}
+    <div class="scq-stat-r {% if row.winner == 0 %}win-a{% elif row.winner == 1 %}win-b{% endif %}">
+      <span class="scq-stat-a">{% if row.money %}{{ money(row.v1) }}{% else %}{{ row.v1 }}{% endif %}</span>
+      <span class="scq-stat-l">{{ row.label }}</span>
+      <span class="scq-stat-b">{% if row.money %}{{ money(row.v2) }}{% else %}{{ row.v2 }}{% endif %}</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="scq-stat-block">
+    <h2 class="scq-block-title">Position Strength</h2>
+    {% for row in comp.pos_rows %}
+    <div class="scq-stat-r {% if row.winner == 0 %}win-a{% elif row.winner == 1 %}win-b{% endif %}">
+      <span class="scq-stat-a">{{ row.v1 }}</span>
+      <span class="scq-stat-l">{{ row.label }}</span>
+      <span class="scq-stat-b">{{ row.v2 }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{# ===== FULL SQUADS ===== #}
+<div class="scq-rosters">
+  <div class="scq-roster scq-a">
+    <h2 class="scq-roster-title">{{ comp.s1.team_name }}</h2>
+    {% for p in comp.s1.squad|sort(attribute='ovr', reverse=true) %}
+    <a href="/player/{{ p.key }}" class="scq-player">
+      <img src="{{ face_url(p.key) }}" class="scq-player-face" alt="">
+      <span class="scq-player-name">{{ p.name }}</span>
+      <span class="scq-player-pos">{{ p.position }}</span>
+      <span class="ovr-badge {% if p.ovr >= 90 %}ovr-90{% elif p.ovr >= 80 %}ovr-80{% elif p.ovr >= 70 %}ovr-70{% else %}ovr-low{% endif %}">{{ p.ovr }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  <div class="scq-roster scq-b">
+    <h2 class="scq-roster-title">{{ comp.s2.team_name }}</h2>
+    {% for p in comp.s2.squad|sort(attribute='ovr', reverse=true) %}
+    <a href="/player/{{ p.key }}" class="scq-player">
+      <img src="{{ face_url(p.key) }}" class="scq-player-face" alt="">
+      <span class="scq-player-name">{{ p.name }}</span>
+      <span class="scq-player-pos">{{ p.position }}</span>
+      <span class="ovr-badge {% if p.ovr >= 90 %}ovr-90{% elif p.ovr >= 80 %}ovr-80{% elif p.ovr >= 70 %}ovr-70{% else %}ovr-low{% endif %}">{{ p.ovr }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>

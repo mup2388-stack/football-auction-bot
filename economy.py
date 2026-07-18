@@ -1125,14 +1125,18 @@ def auction_max_bid(guild_id: int, user_id: int, player_group: str = None) -> di
 # --------------------------------------------------------------------------
 
 def create_trade(guild_id: int, from_user: int, to_user: int,
-                 offering_keys: list, requesting_keys: list) -> int:
-    """Create a trade offer. Returns trade ID."""
+                 offering_keys: list, requesting_keys: list, cash: int = 0) -> int:
+    """Create a trade offer. Returns trade ID.
+
+    cash = amount the TO user pays to FROM user (for player-for-money trades).
+    0 = player-for-player or free gift.
+    """
     with db.cursor() as c:
         c.execute(
-            "INSERT INTO trades (guild_id, from_user, to_user, offering, requesting, status, created_at) "
-            "VALUES (?, ?, ?, ?, ?, 'pending', datetime('now'))",
+            "INSERT INTO trades (guild_id, from_user, to_user, offering, requesting, cash, status, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, 'pending', datetime('now'))",
             (guild_id, from_user, to_user,
-             ",".join(offering_keys), ",".join(requesting_keys)),
+             ",".join(offering_keys), ",".join(requesting_keys), cash),
         )
         return c.lastrowid
 
@@ -1165,7 +1169,10 @@ def update_trade_status(guild_id: int, trade_id: int, status: str):
 
 
 def execute_trade(guild_id: int, trade_id: int):
-    """Swap player ownership between two managers."""
+    """Execute a trade: swap players + handle cash transfer.
+
+    cash column = amount TO user pays to FROM user.
+    """
     trade = get_trade(guild_id, trade_id)
     if not trade or trade["status"] != "pending":
         return False
@@ -1173,7 +1180,15 @@ def execute_trade(guild_id: int, trade_id: int):
     to_user = trade["to_user"]
     offering = [k for k in trade["offering"].split(",") if k]
     requesting = [k for k in trade["requesting"].split(",") if k]
+    cash = int(trade.get("cash") or 0)
+
+    # Check cash affordability (TO user pays FROM user)
+    if cash > 0:
+        if not can_afford(guild_id, to_user, cash):
+            return False
+
     with db.cursor() as c:
+        # Move offered players from -> to
         for key in offering:
             row = c.execute(
                 "SELECT acquired_price FROM squads WHERE guild_id=? AND user_id=? AND player_key=?",
@@ -1189,6 +1204,7 @@ def execute_trade(guild_id: int, trade_id: int):
                 "VALUES (?, ?, ?, ?, ?)",
                 (guild_id, to_user, key, "", price),
             )
+        # Move requested players to -> from
         for key in requesting:
             row = c.execute(
                 "SELECT acquired_price FROM squads WHERE guild_id=? AND user_id=? AND player_key=?",
@@ -1204,6 +1220,10 @@ def execute_trade(guild_id: int, trade_id: int):
                 "VALUES (?, ?, ?, ?, ?)",
                 (guild_id, from_user, key, "", price),
             )
+        # Cash transfer: TO pays FROM
+        if cash > 0:
+            adjust_balance(guild_id, to_user, -cash)
+            adjust_balance(guild_id, from_user, cash)
         c.execute(
             "UPDATE trades SET status='accepted', resolved_at=datetime('now') "
             "WHERE guild_id=? AND id=?",

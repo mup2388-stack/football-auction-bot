@@ -617,6 +617,7 @@ def init_db():
     _add_column("guild_state", "trades_enabled", "INTEGER NOT NULL DEFAULT 1")
     _add_column("player_match_stats", "season_id", "INTEGER")
     _add_column("formations", "free_lineup", "TEXT")
+    _add_column("trades", "cash", "INTEGER NOT NULL DEFAULT 0")
 
     with cursor() as c:
         c.execute(

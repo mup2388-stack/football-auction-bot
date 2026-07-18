@@ -1588,6 +1588,138 @@ def face(player_key):
 
 
 # ===========================================================================
+#  SQUAD COMPARE
+# ===========================================================================
+@app.route("/compare-squads")
+def compare_squads_page():
+    """Compare two squads head-to-head: net worth, XI rating, position strength."""
+    gid = _guild_id()
+    t1 = request.args.get("t1", type=int)
+    t2 = request.args.get("t2", type=int)
+
+    # Get all managers for selection
+    managers_raw = E.squads_overview(gid)
+    managers = []
+    for m in managers_raw:
+        managers.append({
+            "user_id": m["user_id"],
+            "team_name": m["team_name"],
+            "logo_url": _team_logo_url(m["team_name"]),
+            "squad_size": len(m["squad"]),
+            "net_worth": m["squad_value"] + m["balance"],
+        })
+    managers.sort(key=lambda m: m["net_worth"], reverse=True)
+
+    comp = None
+    if t1 and t2 and t1 != t2:
+        comp = _build_squad_comparison(gid, t1, t2)
+
+    return render_template(
+        "compare_squads.html",
+        active_page="",
+        managers=managers,
+        t1=t1, t2=t2,
+        comp=comp,
+        team_logo_url=_team_logo_url,
+        face_url=_face_url,
+        money=_money,
+    )
+
+
+def _squad_stats(gid, uid):
+    """Build full squad stats for comparison (batched, one set of queries)."""
+    squad = E.get_squad(gid, uid)
+    if not squad:
+        return None
+    bal = E.get_balance(gid, uid)
+    sv = E.squad_value(squad)
+    pr = E._power_rating_from_squad(squad)
+    lineup, _ = E.get_lineup(gid, uid)
+    xi = [p for _, p in lineup if p]
+    xi_rating = round(sum(p["ovr"] for p in xi) / len(xi)) if xi else 0
+
+    # Position group averages
+    groups = {"GK": [], "DEF": [], "MID": [], "FWD": []}
+    for p in squad:
+        groups.setdefault(p.get("group", "MID"), []).append(p)
+    group_avg = {}
+    for g in ("GK", "DEF", "MID", "FWD"):
+        players = groups.get(g, [])
+        group_avg[g] = round(sum(p["ovr"] for p in players) / len(players)) if players else 0
+
+    top3 = sorted(squad, key=lambda p: p["ovr"], reverse=True)[:3]
+    return {
+        "user_id": uid,
+        "team_name": E.get_team_name(gid, uid) or f"Manager {uid}",
+        "squad": squad,
+        "xi": xi,
+        "xi_rating": xi_rating,
+        "budget": bal,
+        "squad_value": sv,
+        "net_worth": sv + bal,
+        "power_rating": pr,
+        "group_avg": group_avg,
+        "top3": top3,
+        "squad_size": len(squad),
+    }
+
+
+def _build_squad_comparison(gid, t1_uid, t2_uid):
+    """Build comparison data between two squads."""
+    s1 = _squad_stats(gid, t1_uid)
+    s2 = _squad_stats(gid, t2_uid)
+    if not s1 or not s2:
+        return None
+
+    # Position strength bars (GK/DEF/MID/FWD)
+    labels = ["GK", "DEF", "MID", "FWD"]
+    pos_rows = []
+    for g in labels:
+        v1 = s1["group_avg"].get(g, 0)
+        v2 = s2["group_avg"].get(g, 0)
+        pos_rows.append({
+            "label": g, "v1": v1, "v2": v2,
+            "winner": 0 if v1 > v2 else (1 if v2 > v1 else -1),
+        })
+
+    # Stat rows for the big comparison
+    stat_rows = [
+        {"label": "XI Rating", "v1": s1["xi_rating"], "v2": s2["xi_rating"],
+         "winner": 0 if s1["xi_rating"] > s2["xi_rating"] else (1 if s2["xi_rating"] > s1["xi_rating"] else -1)},
+        {"label": "Power Rating", "v1": s1["power_rating"], "v2": s2["power_rating"],
+         "winner": 0 if s1["power_rating"] > s2["power_rating"] else (1 if s2["power_rating"] > s1["power_rating"] else -1)},
+        {"label": "Squad Value", "v1": s1["squad_value"], "v2": s2["squad_value"],
+         "winner": 0 if s1["squad_value"] > s2["squad_value"] else (1 if s2["squad_value"] > s1["squad_value"] else -1),
+         "money": True},
+        {"label": "Budget", "v1": s1["budget"], "v2": s2["budget"],
+         "winner": 0 if s1["budget"] > s2["budget"] else (1 if s2["budget"] > s1["budget"] else -1),
+         "money": True},
+        {"label": "Net Worth", "v1": s1["net_worth"], "v2": s2["net_worth"],
+         "winner": 0 if s1["net_worth"] > s2["net_worth"] else (1 if s2["net_worth"] > s1["net_worth"] else -1),
+         "money": True},
+        {"label": "Squad Size", "v1": s1["squad_size"], "v2": s2["squad_size"],
+         "winner": 0 if s1["squad_size"] > s2["squad_size"] else (1 if s2["squad_size"] > s1["squad_size"] else -1)},
+    ]
+
+    # Scale money bars
+    max_money = max(s1["net_worth"], s2["net_worth"], 1)
+    for row in stat_rows:
+        if row.get("money"):
+            row["bar_v1"] = int(row["v1"] / max_money * 99)
+            row["bar_v2"] = int(row["v2"] / max_money * 99)
+        else:
+            row["bar_v1"] = row["v1"]
+            row["bar_v2"] = row["v2"]
+
+    return {
+        "s1": s1,
+        "s2": s2,
+        "stat_rows": stat_rows,
+        "pos_rows": pos_rows,
+    }
+
+
+# ===========================================================================
 #  LAUNCH (called from main.py)
 # ===========================================================================
 def run_in_thread(port=5000):

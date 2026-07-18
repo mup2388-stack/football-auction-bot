@@ -1110,6 +1110,41 @@ async def my_squad_autocomplete(interaction: discord.Interaction, current: str):
     return choices
 
 
+async def target_squad_autocomplete(interaction: discord.Interaction, current: str):
+    """Autocomplete: players from the SELECTED target user's squad.
+    Reads the 'user' option from the command's namespace (works even though
+    autocomplete runs before submit).
+    """
+    target_id = None
+    try:
+        ns = interaction.namespace
+        if hasattr(ns, 'user') and ns.user:
+            target_id = ns.user.id
+    except Exception:
+        pass
+    if target_id is None:
+        try:
+            data = interaction.data or {}
+            for opt in data.get("options") or []:
+                if opt.get("name") == "user" and opt.get("value"):
+                    target_id = int(opt["value"])
+                    break
+        except Exception:
+            pass
+    if target_id is None:
+        return []
+    squad = E.get_squad(interaction.guild_id, target_id)
+    q = P.slug(current)
+    choices = []
+    for p in squad:
+        if q in p["key"] or not current:
+            choices.append(app_commands.Choice(
+                name=f"{p['name']} ({p['position']}/{p['ovr']})", value=p["key"]))
+        if len(choices) >= 25:
+            break
+    return choices
+
+
 @bot.tree.command(description="View a manager's bench players.")
 @app_commands.describe(user="Whose bench to view (defaults to you).")
 async def bench(interaction: discord.Interaction, user: discord.Member = None):
@@ -1242,7 +1277,7 @@ async def needs(interaction: discord.Interaction, user: discord.Member = None):
     want="Player you WANT from them.",
 )
 @app_commands.autocomplete(give=my_squad_autocomplete)
-@app_commands.autocomplete(want=my_squad_autocomplete)
+@app_commands.autocomplete(want=target_squad_autocomplete)
 async def trade(interaction: discord.Interaction, user: discord.Member,
                 give: str, want: str):
     await interaction.response.defer()
@@ -1359,20 +1394,149 @@ async def trades(interaction: discord.Interaction):
         give_str = ", ".join(
             f"**{P.get(k)['ovr']}** {P.get(k)['name']}"
             if P.get(k) else k for k in give_keys
-        )
+        ) or "(nothing)"
         want_str = ", ".join(
             f"**{P.get(k)['ovr']}** {P.get(k)['name']}"
             if P.get(k) else k for k in want_keys
-        )
+        ) or "(nothing)"
+        cash_str = ""
+        if t.get("cash") and int(t["cash"]) > 0:
+            cash_str = f" + **{E.money(int(t['cash']))}**"
         lines.append(
             f"**Trade #{t['id']}** from {from_tag}\n"
-            f"  Offers: {give_str}\n"
-            f"  Wants: {want_str}\n"
+            f"  They offer: {give_str}\n"
+            f"  They want: {want_str}{cash_str}\n"
             f"  `/accepttrade {t['id']}` · `/rejecttrade {t['id']}`"
         )
     e = discord.Embed(title=f"Pending Trades ({len(pending)})",
                       description="\n".join(lines), color=C.AMBER)
     await interaction.followup.send(embed=e, ephemeral=True)
+
+
+# ==========================================================================
+#  NEW TRADE TYPES: gift, cash, player+cash
+# ==========================================================================
+
+@bot.tree.command(name="tradegift", description="Give one of your players to another manager for free.")
+@app_commands.describe(
+    user="Who receives the player.",
+    give="Player you are gifting.",
+)
+@app_commands.autocomplete(give=my_squad_autocomplete)
+async def tradegift(interaction: discord.Interaction, user: discord.Member, give: str):
+    await interaction.response.defer()
+    if not db.trades_enabled(interaction.guild_id):
+        await interaction.followup.send("Trades are currently disabled.", ephemeral=True)
+        return
+    if user.id == interaction.user.id:
+        await interaction.followup.send("Can't gift to yourself.", ephemeral=True)
+        return
+    if not E.owns(interaction.guild_id, interaction.user.id, give):
+        await interaction.followup.send("You don't own that player.", ephemeral=True)
+        return
+    p = P.get(give)
+    trade_id = E.create_trade(
+        interaction.guild_id, interaction.user.id, user.id,
+        [give], [], cash=0
+    )
+    await interaction.followup.send(
+        f"**Gift offer #{trade_id}** sent to {user.mention}!\n\n"
+        f"**You give:** {P.flag(p['country'])} {p['name']} ({p['ovr']})\n"
+        f"**You want:** Nothing (free gift)\n\n"
+        f"{user.mention}, use `/accepttrade {trade_id}` or `/rejecttrade {trade_id}`"
+    )
+
+
+@bot.tree.command(name="tradecash", description="Sell a player to another manager for cash.")
+@app_commands.describe(
+    user="Who you're selling to.",
+    give="Player you are selling.",
+    amount="Price in millions (e.g. 50 = £50M).",
+)
+@app_commands.autocomplete(give=my_squad_autocomplete)
+async def tradecash(interaction: discord.Interaction, user: discord.Member, give: str, amount: int):
+    await interaction.response.defer()
+    if not db.trades_enabled(interaction.guild_id):
+        await interaction.followup.send("Trades are currently disabled.", ephemeral=True)
+        return
+    if user.id == interaction.user.id:
+        await interaction.followup.send("Can't trade with yourself.", ephemeral=True)
+        return
+    if not E.owns(interaction.guild_id, interaction.user.id, give):
+        await interaction.followup.send("You don't own that player.", ephemeral=True)
+        return
+    if amount <= 0:
+        await interaction.followup.send("Amount must be positive.", ephemeral=True)
+        return
+    p = P.get(give)
+    cash = amount * 1_000_000
+    # Check if the buyer can afford it
+    buyer_bal = E.get_balance(interaction.guild_id, user.id)
+    if buyer_bal < cash:
+        await interaction.followup.send(
+            f"{user.display_name} only has {E.money(buyer_bal)}. Can't afford {E.money(cash)}.",
+            ephemeral=True)
+        return
+    trade_id = E.create_trade(
+        interaction.guild_id, interaction.user.id, user.id,
+        [give], [], cash=cash
+    )
+    await interaction.followup.send(
+        f"**Cash trade #{trade_id}** sent to {user.mention}!\n\n"
+        f"**You give:** {P.flag(p['country'])} {p['name']} ({p['ovr']})\n"
+        f"**You want:** {E.money(cash)}\n\n"
+        f"{user.mention}, use `/accepttrade {trade_id}` or `/rejecttrade {trade_id}`"
+    )
+
+
+@bot.tree.command(name="tradeplus", description="Trade your player for their player + cash.")
+@app_commands.describe(
+    user="Who you're trading with.",
+    give="Player YOU are offering.",
+    want="Player you WANT from them.",
+    amount="Extra cash you want (in millions, e.g. 50 = £50M).",
+)
+@app_commands.autocomplete(give=my_squad_autocomplete)
+@app_commands.autocomplete(want=target_squad_autocomplete)
+async def tradeplus(interaction: discord.Interaction, user: discord.Member,
+                    give: str, want: str, amount: int):
+    await interaction.response.defer()
+    if not db.trades_enabled(interaction.guild_id):
+        await interaction.followup.send("Trades are currently disabled.", ephemeral=True)
+        return
+    if user.id == interaction.user.id:
+        await interaction.followup.send("Can't trade with yourself.", ephemeral=True)
+        return
+    if not E.owns(interaction.guild_id, interaction.user.id, give):
+        await interaction.followup.send("You don't own that player.", ephemeral=True)
+        return
+    if not E.owns(interaction.guild_id, user.id, want):
+        await interaction.followup.send(f"{user.display_name} doesn't own that player.", ephemeral=True)
+        return
+    if amount < 0:
+        await interaction.followup.send("Amount can't be negative.", ephemeral=True)
+        return
+    p_give = P.get(give)
+    p_want = P.get(want)
+    cash = amount * 1_000_000
+    if cash > 0:
+        buyer_bal = E.get_balance(interaction.guild_id, user.id)
+        if buyer_bal < cash:
+            await interaction.followup.send(
+                f"{user.display_name} only has {E.money(buyer_bal)}. Can't afford {E.money(cash)}.",
+                ephemeral=True)
+            return
+    trade_id = E.create_trade(
+        interaction.guild_id, interaction.user.id, user.id,
+        [give], [want], cash=cash
+    )
+    await interaction.followup.send(
+        f"**Trade+ offer #{trade_id}** sent to {user.mention}!\n\n"
+        f"**You offer:** {P.flag(p_give['country'])} {p_give['name']} ({p_give['ovr']})\n"
+        f"**You want:** {P.flag(p_want['country'])} {p_want['name']} ({p_want['ovr']})"
+        + (f" + {E.money(cash)}" if cash > 0 else "") + "\n\n"
+        f"{user.mention}, use `/accepttrade {trade_id}` or `/rejecttrade {trade_id}`"
+    )
 
 
 @bot.tree.command(description="[Admin] Export FL26 setup guide with all teams, rosters & lineups.")
@@ -3960,7 +4124,6 @@ async def help(interaction: discord.Interaction):
         await interaction.followup.send(embed=e, view=AdminHelpView())
     else:
         await interaction.followup.send(embed=e)
-
 
 
 # --------------------------------------------------------------------------
