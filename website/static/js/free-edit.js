@@ -239,14 +239,31 @@ var FE = {
         var isPitch = FE.dragging.overPitch;
         if (FE.dragging.moved) {
           if (FE.dragging.isGK) {
-            // GK: check if dropped outside pitch bounds
-            var rect = FE._pitchRect;
-            var px = e.clientX - rect.left;
-            var py = e.clientY - rect.top;
-            if (px < 0 || px > rect.width || py < 0 || py > rect.height) {
+            // GK special handling on drop
+            var rect2 = FE._pitchRect;
+            var px2 = e.clientX - rect2.left;
+            var py2 = e.clientY - rect2.top;
+            var onPitch = (px2 >= 0 && px2 <= rect2.width && py2 >= 0 && py2 <= rect2.height);
+            if (!onPitch) {
+              // Dropped outside pitch -> bench (sub)
               FE.moveToBench(key); FE.dragging = null; FE.render();
+            } else if (!wasPitch) {
+              // Bench GK dropped ON pitch -> only allow if no GK already on pitch
+              var gkAlready = false;
+              for (var gi = 0; gi < FE.pitch.length; gi++) {
+                if (FE.isGK(FE.pitch[gi].key)) { gkAlready = true; break; }
+              }
+              if (!gkAlready && FE.pitch.length < 11) {
+                // Move GK to its locked position (0.50, 0.90)
+                FE.bench = FE.bench.filter(function(k){ return k !== key; });
+                FE.pitch.push({ key: key, x: 0.50, y: 0.90, pos: 'GK' });
+                FE.dragging = null; FE.render();
+              } else {
+                // GK already on pitch or squad full -> snap back
+                FE.dragging = null; FE.render();
+              }
             } else {
-              // dropped on pitch — snap back, do nothing
+              // Pitch GK dropped on pitch -> snap back to GK spot
               FE.dragging = null; FE.render();
             }
           } else if (wasPitch && !isPitch) {
