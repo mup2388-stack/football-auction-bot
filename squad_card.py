@@ -533,21 +533,43 @@ def render_squad_card(guild_id, member_name, user_id, squad, avatar_url=None):
     CH_CARD = CH
 
     if free_positions:
-        # Free-edit rendering (PES-style custom positions):
-        #   1. DEDUPE: keep only real squad members, no ghosts/dupes
-        #   2. CAP: hard 11 max — keep highest-OVR players, rest go to bench
-        #   3. SMART SHRINK: only shrink if there's REAL overlap (uses actual
-        #      card size for detection, not a different base size — that was
-        #      the old bug). Min size 80% so cards stay readable.
+        # Free-edit rendering (PES-style custom positions).
+        # CRITICAL: auto-merge newly bought players that aren't in free_positions
+        # yet, so they show up on /team. Same logic as squad_detail.py.
         squad_keys = {p["key"] for p in squad}
         clean_pos = {}
         for k, v in free_positions.items():
             if k in squad_keys and k not in clean_pos:
                 clean_pos[k] = v
 
-        # Hard cap at 11 — keep the highest OVR players on pitch
+        # Auto-merge: any squad player not in clean_pos gets added at their
+        # formation slot position (if there's room and the slot is free)
+        all_slots = FM.all_slots(formation)
+        squad_by_key = {p["key"]: p for p in squad}
+        for slot_data, player in lineup:
+            if not player or player["key"] not in squad_keys:
+                continue
+            if player["key"] in clean_pos:
+                continue
+            if len(clean_pos) >= 11:
+                break
+            slot_idx = slot_data["index"]
+            if slot_idx < len(all_slots):
+                slot_info = all_slots[slot_idx]
+                sx, sy = slot_info["x"], slot_info["y"]
+                # skip if slot is already occupied
+                already = False
+                for v in clean_pos.values():
+                    if abs(sx - v.get("x", 0.5)) < 0.02 and abs(sy - v.get("y", 0.5)) < 0.02:
+                        already = True
+                        break
+                if not already:
+                    clean_pos[player["key"]] = {
+                        "x": sx, "y": sy, "pos": slot_info["pos"]
+                    }
+
+        # Hard cap at 11
         if len(clean_pos) > 11:
-            squad_by_key = {p["key"]: p for p in squad}
             sorted_keys = sorted(
                 clean_pos.keys(),
                 key=lambda k: squad_by_key.get(k, {}).get("ovr", 0),
@@ -556,7 +578,6 @@ def render_squad_card(guild_id, member_name, user_id, squad, avatar_url=None):
             clean_pos = {k: clean_pos[k] for k in sorted_keys[:11]}
 
         # Calculate pixel positions using ACTUAL card size (CW x CH_CARD)
-        squad_by_key = {p["key"]: p for p in squad}
         positions_px = []
         for pkey, pos_data in clean_pos.items():
             player = squad_by_key.get(pkey)
@@ -573,10 +594,8 @@ def render_squad_card(guild_id, member_name, user_id, squad, avatar_url=None):
                 "pos_data": pos_data,
             })
 
-        # Smart overlap detection — use ACTUAL card size (CW x CH_CARD).
-        # Old bug: detection used CW_BASE (200) but rendering used CW (smaller),
-        # causing false-positive overlaps and unnecessary shrinking.
-        padding = 6  # small gap to tolerate, anything less = real overlap
+        # Smart overlap detection — use ACTUAL card size
+        padding = 6
 
         def has_overlap(w, h):
             for i in range(len(positions_px)):

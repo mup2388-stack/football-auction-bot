@@ -1,6 +1,9 @@
 /* ===========================================================================
-   FREE EDIT v2 — PES/FL26 style with zones, position detection, GK lock
-   MOBILE-SAFE: document-level listeners with { passive: false }
+   FREE EDIT v3 — PES/FL26 style with zones, position detection, GK lock
+   - FULL MOBILE SUPPORT (document-level pointer events, passive:false)
+   - Drag animation on EVERY drag (scale + shadow lift)
+   - Bench <-> Pitch dragging both directions
+   - GK: can drag to bench, can drag from bench to GK spot (if empty)
    =========================================================================== */
 
 var FE = {
@@ -22,12 +25,14 @@ var FE = {
     var benchKeys = window.__BENCH__ || [];
 
     var pitchEl = document.getElementById('pitch');
-    if (pitchEl) pitchEl.style.overflow = 'visible';
+    if (pitchEl) {
+      pitchEl.style.overflow = 'visible';
+      FE._pitchRect = pitchEl.getBoundingClientRect();
+    }
 
     if (Object.keys(free).length > 0) {
       for (var key in free) {
         if (ROSTER[key]) {
-          var p = ROSTER[key];
           if (this.isGK(key)) {
             this.pitch.push({ key: key, x: 0.50, y: 0.90, pos: 'GK' });
           } else {
@@ -52,9 +57,7 @@ var FE = {
           if (this.isGK(pkey)) {
             this.pitch.push({ key: pkey, x: 0.50, y: 0.90, pos: 'GK' });
           } else {
-            this.pitch.push({
-              key: pkey, x: slots[i].x, y: slots[i].y, pos: slots[i].pos,
-            });
+            this.pitch.push({ key: pkey, x: slots[i].x, y: slots[i].y, pos: slots[i].pos });
           }
           usedKeys[pkey] = true;
         }
@@ -108,14 +111,16 @@ var FE = {
     if (label) label.textContent = 'FREE FORMATION - DRAG PLAYERS';
     if (!pitch) return;
     pitch.innerHTML = '';
+    if (pitch) FE._pitchRect = pitch.getBoundingClientRect();
 
     // Zone lines
-    [{y:25},{y:60},{y:82}].forEach(function(z){
+    [{ y: 25 }, { y: 60 }, { y: 82 }].forEach(function (z) {
       var line = document.createElement('div');
-      line.style.cssText = 'position:absolute;left:0;right:0;top:'+z.y+'%;height:1px;background:rgba(255,206,96,0.06);pointer-events:none;';
+      line.style.cssText = 'position:absolute;left:0;right:0;top:' + z.y + '%;height:1px;background:rgba(255,206,96,0.06);pointer-events:none;';
       pitch.appendChild(line);
     });
 
+    // Pitch players
     for (var i = 0; i < this.pitch.length; i++) {
       var pp = this.pitch[i];
       var p = ROSTER[pp.key];
@@ -127,12 +132,11 @@ var FE = {
       div.dataset.fe = '1';
       div.style.left = (pp.x * 100) + '%';
       div.style.top = (pp.y * 100) + '%';
+      div.style.touchAction = 'none';
       if (isGK) {
-        div.style.cursor = 'not-allowed';
-        div.style.opacity = '0.9';
+        div.style.cursor = 'grab';
       } else {
         div.style.cursor = 'grab';
-        div.style.touchAction = 'none';
       }
       div.innerHTML =
         '<div class="pitch-link">' +
@@ -143,6 +147,7 @@ var FE = {
       pitch.appendChild(div);
     }
 
+    // Bench players
     var benchEl = document.getElementById('bench-list');
     if (benchEl) {
       benchEl.innerHTML = '';
@@ -169,12 +174,13 @@ var FE = {
     var self = this;
     var pitch = document.getElementById('pitch');
 
+    // Attach pointerdown to ALL draggable elements (pitch + bench)
     document.querySelectorAll('[data-fe="1"]').forEach(function (el) {
       var isThisGK = self.isGK(el.dataset.key);
 
       el.addEventListener('pointerdown', function (e) {
         e.preventDefault();
-        FE._pitchRect = pitch.getBoundingClientRect();
+        if (pitch) FE._pitchRect = pitch.getBoundingClientRect();
         self.removePicker();
         self.dragging = {
           key: el.dataset.key,
@@ -185,8 +191,12 @@ var FE = {
           overPitch: false,
         };
         try { el.setPointerCapture(e.pointerId); } catch (err) {}
+        // Drag animation — scale up + lift + shadow
         el.style.zIndex = '1000';
-        el.style.opacity = '0.85';
+        el.style.opacity = '0.9';
+        el.style.transform = 'scale(1.15)';
+        el.style.transition = 'transform 0.1s ease';
+        el.style.filter = 'drop-shadow(0 8px 16px rgba(0,0,0,0.5))';
         el.style.touchAction = 'none';
       }, { passive: false });
     });
@@ -194,9 +204,7 @@ var FE = {
     if (!FE._docHandlers) {
       FE._docHandlers = true;
 
-      // pointermove on DOCUMENT (not element) — critical for mobile where
-      // the finger slides off the original element during drag.
-      // { passive: false } so preventDefault actually blocks page scroll.
+      // pointermove on DOCUMENT — critical for mobile
       document.addEventListener('pointermove', function (e) {
         if (!FE.dragging) return;
         e.preventDefault();
@@ -204,25 +212,31 @@ var FE = {
         var el = FE.dragging.el;
         var px = e.clientX - rect.left;
         var py = e.clientY - rect.top;
-        // GK special: allow visual drag anywhere but never place on pitch
+
+        // GK special: allow visual drag anywhere
         if (FE.dragging.isGK) {
-          el.style.left = Math.max(0, Math.min(100, (px / rect.width) * 100)) + '%';
-          el.style.top = Math.max(0, Math.min(100, (py / rect.height) * 100)) + '%';
+          el.style.left = Math.max(-20, Math.min(120, (px / rect.width) * 100)) + '%';
+          el.style.top = Math.max(-20, Math.min(120, (py / rect.height) * 100)) + '%';
           FE.dragging.moved = true;
           FE.dragging.overPitch = false;
           return;
         }
+
+        // Non-GK: follow cursor anywhere on screen
+        el.style.left = Math.max(-20, Math.min(120, (px / rect.width) * 100)) + '%';
+        el.style.top = Math.max(-20, Math.min(120, (py / rect.height) * 100)) + '%';
+        FE.dragging.moved = true;
+
+        // Check if over pitch (for drop logic)
         if (px >= 0 && px <= rect.width && py >= 0 && py <= rect.height) {
           var yPct = py / rect.height;
-          if (yPct > 0.82) return;
-          var x = Math.max(0.03, Math.min(0.97, px / rect.width));
-          var y = Math.max(0.03, Math.min(0.78, py / rect.height));
-          el.style.left = (x * 100) + '%';
-          el.style.top = (y * 100) + '%';
-          FE.dragging.moved = true;
-          FE.dragging.overPitch = true;
-          FE.dragging.x = x;
-          FE.dragging.y = y;
+          if (yPct <= 0.82) {
+            FE.dragging.overPitch = true;
+            FE.dragging.x = Math.max(0.03, Math.min(0.97, px / rect.width));
+            FE.dragging.y = Math.max(0.03, Math.min(0.78, py / rect.height));
+          } else {
+            FE.dragging.overPitch = false;
+          }
         } else {
           FE.dragging.overPitch = false;
         }
@@ -232,38 +246,37 @@ var FE = {
         if (!FE.dragging) return;
         var el = FE.dragging.el;
         try { el.releasePointerCapture(e.pointerId); } catch (err) {}
+        // Reset drag animation
         el.style.zIndex = '';
         el.style.opacity = '';
+        el.style.transform = '';
+        el.style.transition = '';
+        el.style.filter = '';
         var key = FE.dragging.key;
         var wasPitch = FE.dragging.isPitch;
         var isPitch = FE.dragging.overPitch;
+
         if (FE.dragging.moved) {
           if (FE.dragging.isGK) {
-            // GK special handling on drop
             var rect2 = FE._pitchRect;
             var px2 = e.clientX - rect2.left;
             var py2 = e.clientY - rect2.top;
             var onPitch = (px2 >= 0 && px2 <= rect2.width && py2 >= 0 && py2 <= rect2.height);
             if (!onPitch) {
-              // Dropped outside pitch -> bench (sub)
               FE.moveToBench(key); FE.dragging = null; FE.render();
             } else if (!wasPitch) {
-              // Bench GK dropped ON pitch -> only allow if no GK already on pitch
               var gkAlready = false;
               for (var gi = 0; gi < FE.pitch.length; gi++) {
                 if (FE.isGK(FE.pitch[gi].key)) { gkAlready = true; break; }
               }
               if (!gkAlready && FE.pitch.length < 11) {
-                // Move GK to its locked position (0.50, 0.90)
-                FE.bench = FE.bench.filter(function(k){ return k !== key; });
+                FE.bench = FE.bench.filter(function (k) { return k !== key; });
                 FE.pitch.push({ key: key, x: 0.50, y: 0.90, pos: 'GK' });
                 FE.dragging = null; FE.render();
               } else {
-                // GK already on pitch or squad full -> snap back
                 FE.dragging = null; FE.render();
               }
             } else {
-              // Pitch GK dropped on pitch -> snap back to GK spot
               FE.dragging = null; FE.render();
             }
           } else if (wasPitch && !isPitch) {
@@ -274,21 +287,32 @@ var FE = {
           } else if (wasPitch && isPitch) {
             FE.updatePosition(key, FE.dragging.x, FE.dragging.y);
             FE.dragging = null; FE.render(); FE.maybeShowPicker(key);
+          } else {
+            // Bench player dropped outside pitch — snap back
+            FE.dragging = null; FE.render();
           }
-        } else { FE.dragging = null; }
+        } else {
+          FE.dragging = null;
+        }
       }, { passive: false });
 
       document.addEventListener('pointercancel', function () {
         if (!FE.dragging) return;
         FE.dragging.el.style.zIndex = '';
         FE.dragging.el.style.opacity = '';
+        FE.dragging.el.style.transform = '';
+        FE.dragging.el.style.filter = '';
         FE.dragging = null;
       }, { passive: false });
 
-      // iOS Safari fallback: explicitly block touch scroll during drag
+      // iOS Safari: block touch scroll during drag
       document.addEventListener('touchmove', function (e) {
         if (FE.dragging) e.preventDefault();
       }, { passive: false });
+
+      document.addEventListener('touchend', function () {
+        // Let pointerup handle it
+      }, { passive: true });
     }
   },
 
@@ -318,6 +342,7 @@ var FE = {
     var self = this;
     this.removePicker();
     var pitch = document.getElementById('pitch');
+    if (!pitch) return;
     var picker = document.createElement('div');
     picker.className = 'fe-pos-picker';
     picker.style.left = (pp.x * 100) + '%';
@@ -327,13 +352,18 @@ var FE = {
       var btn = document.createElement('button');
       btn.className = 'fe-picker-btn';
       btn.textContent = opt;
-      btn.onclick = function (e) { e.preventDefault(); e.stopPropagation(); pp.pos = opt; self.removePicker(); self.render(); };
+      btn.addEventListener('pointerup', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        pp.pos = opt; self.removePicker(); self.render();
+      });
       picker.appendChild(btn);
     });
     var closeBtn = document.createElement('button');
     closeBtn.className = 'fe-picker-close';
     closeBtn.textContent = 'X';
-    closeBtn.onclick = function (e) { e.preventDefault(); self.removePicker(); self.render(); };
+    closeBtn.addEventListener('pointerup', function (e) {
+      e.preventDefault(); self.removePicker(); self.render();
+    });
     picker.appendChild(closeBtn);
     pitch.appendChild(picker);
     this.pickerEl = picker;
@@ -380,7 +410,7 @@ var FE = {
   },
 };
 
-// Read-only render for visitors
+// Read-only render for visitors (non-owners)
 document.addEventListener('DOMContentLoaded', function () {
   if (window.__IS_OWNER__) return;
   var free = window.__FREE_LINEUP__ || {};

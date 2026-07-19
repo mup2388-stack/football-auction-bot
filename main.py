@@ -1287,6 +1287,13 @@ async def trade(interaction: discord.Interaction, user: discord.Member,
     if user.id == interaction.user.id:
         await interaction.followup.send(f"{EM.e('x')} Can't trade with yourself.", ephemeral=True)
         return
+    # Both sender AND receiver must have a drawn team in the active season
+    if not Cards.is_season_manager(interaction.guild_id, interaction.user.id):
+        await interaction.followup.send(f"{EM.e('x')} You need a drawn team to trade.", ephemeral=True)
+        return
+    if not Cards.is_season_manager(interaction.guild_id, user.id):
+        await interaction.followup.send(f"{EM.e('x')} That manager doesn't have a drawn team.", ephemeral=True)
+        return
 
     if not E.owns(interaction.guild_id, interaction.user.id, give):
         await interaction.followup.send(f"{EM.e('x')} You don't own that player.", ephemeral=True)
@@ -1431,6 +1438,12 @@ async def tradegift(interaction: discord.Interaction, user: discord.Member, give
     if user.id == interaction.user.id:
         await interaction.followup.send("Can't gift to yourself.", ephemeral=True)
         return
+    if not Cards.is_season_manager(interaction.guild_id, interaction.user.id):
+        await interaction.followup.send("You need a drawn team to trade.", ephemeral=True)
+        return
+    if not Cards.is_season_manager(interaction.guild_id, user.id):
+        await interaction.followup.send("That manager doesn't have a drawn team.", ephemeral=True)
+        return
     if not E.owns(interaction.guild_id, interaction.user.id, give):
         await interaction.followup.send("You don't own that player.", ephemeral=True)
         return
@@ -1461,6 +1474,12 @@ async def tradecash(interaction: discord.Interaction, user: discord.Member, give
         return
     if user.id == interaction.user.id:
         await interaction.followup.send("Can't trade with yourself.", ephemeral=True)
+        return
+    if not Cards.is_season_manager(interaction.guild_id, interaction.user.id):
+        await interaction.followup.send("You need a drawn team to trade.", ephemeral=True)
+        return
+    if not Cards.is_season_manager(interaction.guild_id, user.id):
+        await interaction.followup.send("That manager doesn't have a drawn team.", ephemeral=True)
         return
     if not E.owns(interaction.guild_id, interaction.user.id, give):
         await interaction.followup.send("You don't own that player.", ephemeral=True)
@@ -1506,6 +1525,12 @@ async def tradeplus(interaction: discord.Interaction, user: discord.Member,
         return
     if user.id == interaction.user.id:
         await interaction.followup.send("Can't trade with yourself.", ephemeral=True)
+        return
+    if not Cards.is_season_manager(interaction.guild_id, interaction.user.id):
+        await interaction.followup.send("You need a drawn team to trade.", ephemeral=True)
+        return
+    if not Cards.is_season_manager(interaction.guild_id, user.id):
+        await interaction.followup.send("That manager doesn't have a drawn team.", ephemeral=True)
         return
     if not E.owns(interaction.guild_id, interaction.user.id, give):
         await interaction.followup.send("You don't own that player.", ephemeral=True)
@@ -2524,12 +2549,12 @@ async def season_teams(interaction: discord.Interaction):
     description="[Admin] Transfer a manager's whole team to another Discord user.",
 )
 @app_commands.describe(
-    old="Manager leaving (current Discord account)",
+    old="Manager leaving (current Discord account — mention or type their ID)",
     new="Manager taking over (same team, squad, budget, cards, season seat)",
 )
 async def replace_manager_cmd(
     interaction: discord.Interaction,
-    old: discord.Member,
+    old: str,
     new: discord.Member,
 ):
     if not is_admin(interaction.user.id):
@@ -2537,7 +2562,18 @@ async def replace_manager_cmd(
             f"{EM.e('x')} Admins only.", ephemeral=True
         )
         return
-    if old.id == new.id:
+
+    # Parse old user ID from string (can be a raw ID or a mention)
+    old_str = old.strip().replace("<@", "").replace(">", "").replace("!", "")
+    try:
+        old_uid = int(old_str)
+    except ValueError:
+        await interaction.response.send_message(
+            f"Invalid user ID. Type their Discord ID number (right-click > Copy User ID).",
+            ephemeral=True,
+        )
+        return
+    if old_uid == new.id:
         await interaction.response.send_message(
             f"{EM.e('x')} Pick two different people.", ephemeral=True
         )
@@ -2545,7 +2581,7 @@ async def replace_manager_cmd(
 
     await interaction.response.defer()
     try:
-        res = E.replace_manager(interaction.guild_id, old.id, new.id)
+        res = E.replace_manager(interaction.guild_id, old_uid, new.id)
     except Exception as ex:
         await interaction.followup.send(f"{EM.e('x')} {ex}", ephemeral=True)
         return
@@ -2556,7 +2592,7 @@ async def replace_manager_cmd(
         title=f"{EM.e('check')} Manager replaced",
         description=(
             f"**{team_tag}** transferred.\n\n"
-            f"**From:** {old.mention}\n"
+            f"**From:** <@{old_uid}>\n"
             f"**To:** {new.mention}\n\n"
             f"Budget: **{E.money(res['balance'])}**\n"
             f"Squad: **{res['squad_size']}** players\n\n"
