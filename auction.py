@@ -94,20 +94,34 @@ class AuctionView(discord.ui.View):
 
 
 class Auction:
-    def __init__(self, guild_id, channel, player, started_by, test_mode: bool = False):
+    def __init__(self, guild_id, channel, player, started_by, test_mode: bool = False,
+                 fast_mode: bool = False, blitz_mode: bool = False):
         self.guild_id = guild_id
         self.channel = channel
         self.player = player
         self.started_by = started_by
         # Test auctions: full UI/bidding, but NO money, squad, history, queue, or card progress
         self.test_mode = bool(test_mode)
+        self.fast_mode = bool(fast_mode)
+        self.blitz_mode = bool(blitz_mode)
 
-        self.start_price = P.start_price(player["ovr"], is_icon=P.is_icon(player))
+        # Blitz: everyone starts at 5M. Fast: non-icons at 10M, icons at 25M. Normal: default.
+        if self.blitz_mode:
+            self.start_price = 5_000_000
+        elif self.fast_mode and not P.is_icon(player):
+            self.start_price = 10_000_000
+        elif self.fast_mode and P.is_icon(player):
+            self.start_price = 25_000_000
+        else:
+            self.start_price = P.start_price(player["ovr"], is_icon=P.is_icon(player))
+
         self.current_bid = self.start_price
         self.highest_bidder = None
         self.bids = 0
 
-        self.end_time = datetime.now(timezone.utc) + timedelta(seconds=Config.AUCTION_DURATION)
+        # Fast/Blitz: 30 second timer. Normal: 60.
+        duration = 30 if (self.fast_mode or self.blitz_mode) else Config.AUCTION_DURATION
+        self.end_time = datetime.now(timezone.utc) + timedelta(seconds=duration)
         self.status = "OPEN"
         self.message = None
         self.view = AuctionView(self)

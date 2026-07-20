@@ -194,10 +194,31 @@ var FE = {
         // Drag animation — scale up + lift + shadow
         el.style.zIndex = '1000';
         el.style.opacity = '0.9';
-        el.style.transform = 'scale(1.15)';
         el.style.transition = 'transform 0.1s ease';
         el.style.filter = 'drop-shadow(0 8px 16px rgba(0,0,0,0.5))';
         el.style.touchAction = 'none';
+        if (!self.dragging.isPitch) {
+          // Bench/sub card: reparent into #pitch + position:absolute so it
+          // follows the cursor with the SAME proven % math pitch cards use.
+          // (position:fixed is broken here: an ancestor .reveal has a transform,
+          //  which makes 'fixed' relative to it -> the bottom-right jump.)
+          // Init at the card's CURRENT center so there is NO jump on grab.
+          var origRect = el.getBoundingClientRect();
+          var pitchEl = document.getElementById('pitch');
+          if (pitchEl && el.parentNode !== pitchEl) {
+            pitchEl.appendChild(el);
+          }
+          var pr = FE._pitchRect;
+          var cxPct = ((origRect.left + origRect.width / 2 - pr.left) / pr.width) * 100;
+          var cyPct = ((origRect.top + origRect.height / 2 - pr.top) / pr.height) * 100;
+          el.style.position = 'absolute';
+          el.style.left = cxPct + '%';
+          el.style.top = cyPct + '%';
+          el.style.margin = '0';
+          el.style.transform = 'translate(-50%, -50%) scale(1.15)';
+        } else {
+          el.style.transform = 'scale(1.15)';
+        }
       }, { passive: false });
     });
 
@@ -213,8 +234,8 @@ var FE = {
         var px = e.clientX - rect.left;
         var py = e.clientY - rect.top;
 
-        // GK special: allow visual drag anywhere
-        if (FE.dragging.isGK) {
+        // GK on the pitch: original % follow; overPitch decided in pointerup
+        if (FE.dragging.isGK && FE.dragging.isPitch) {
           el.style.left = Math.max(-20, Math.min(120, (px / rect.width) * 100)) + '%';
           el.style.top = Math.max(-20, Math.min(120, (py / rect.height) * 100)) + '%';
           FE.dragging.moved = true;
@@ -222,13 +243,24 @@ var FE = {
           return;
         }
 
-        // Non-GK: follow cursor anywhere on screen
-        el.style.left = Math.max(-20, Math.min(120, (px / rect.width) * 100)) + '%';
-        el.style.top = Math.max(-20, Math.min(120, (py / rect.height) * 100)) + '%';
+        // Visual follow: pitch cards use % of the pitch (position:absolute in
+        // #pitch); bench/sub cards (now reparented into #pitch) do the same,
+        // so the card's center tracks the cursor exactly like a pitch card.
+        if (FE.dragging.isPitch) {
+          el.style.left = Math.max(-20, Math.min(120, (px / rect.width) * 100)) + '%';
+          el.style.top = Math.max(-20, Math.min(120, (py / rect.height) * 100)) + '%';
+        } else {
+          var bcx = ((e.clientX - rect.left) / rect.width) * 100;
+          var bcy = ((e.clientY - rect.top) / rect.height) * 100;
+          el.style.left = bcx + '%';
+          el.style.top = bcy + '%';
+        }
         FE.dragging.moved = true;
 
-        // Check if over pitch (for drop logic)
-        if (px >= 0 && px <= rect.width && py >= 0 && py <= rect.height) {
+        // overPitch drop detection (skip GK — pointerup decides from raw cursor)
+        if (FE.dragging.isGK) {
+          FE.dragging.overPitch = false;
+        } else if (px >= 0 && px <= rect.width && py >= 0 && py <= rect.height) {
           var yPct = py / rect.height;
           if (yPct <= 0.82) {
             FE.dragging.overPitch = true;
@@ -249,6 +281,10 @@ var FE = {
         // Reset drag animation
         el.style.zIndex = '';
         el.style.opacity = '';
+        el.style.position = '';
+        el.style.left = '';
+        el.style.top = '';
+        el.style.margin = '';
         el.style.transform = '';
         el.style.transition = '';
         el.style.filter = '';
@@ -293,6 +329,7 @@ var FE = {
           }
         } else {
           FE.dragging = null;
+          FE.render();
         }
       }, { passive: false });
 
@@ -300,6 +337,10 @@ var FE = {
         if (!FE.dragging) return;
         FE.dragging.el.style.zIndex = '';
         FE.dragging.el.style.opacity = '';
+        FE.dragging.el.style.position = '';
+        FE.dragging.el.style.left = '';
+        FE.dragging.el.style.top = '';
+        FE.dragging.el.style.margin = '';
         FE.dragging.el.style.transform = '';
         FE.dragging.el.style.filter = '';
         FE.dragging = null;
@@ -382,9 +423,45 @@ var FE = {
         var side = this.getSide(x);
         var options = this.getPosOptions(zone, side);
         if (options.length === 1) this.pitch[i].pos = options[0];
+        this.resolveCollisions(key);
         return;
       }
     }
+  },
+
+  // Small exclusion radius: no two outfield players can sit on top of each
+  // other. After a move/drop, push the moved player just clear of any neighbour
+  // that's closer than MIN_DIST (in pitch-fraction units). GK is ignored.
+  resolveCollisions: function (key) {
+    var MIN_DIST = 0.085;
+    var me = null;
+    for (var i = 0; i < this.pitch.length; i++) {
+      if (this.pitch[i].key === key) { me = this.pitch[i]; break; }
+    }
+    if (!me || this.isGK(key)) return;
+    for (var pass = 0; pass < 5; pass++) {
+      var moved = false;
+      for (var j = 0; j < this.pitch.length; j++) {
+        var other = this.pitch[j];
+        if (other.key === key || this.isGK(other.key)) continue;
+        var dx = me.x - other.x;
+        var dy = me.y - other.y;
+        var d = Math.sqrt(dx * dx + dy * dy);
+        if (d < MIN_DIST) {
+          if (d > 0.0001) {
+            var push = (MIN_DIST - d) / d;
+            me.x += dx * push;
+            me.y += dy * push;
+          } else {
+            me.x += MIN_DIST;  // exact overlap — nudge aside
+          }
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
+    me.x = Math.max(0.03, Math.min(0.97, me.x));
+    me.y = Math.max(0.03, Math.min(0.80, me.y));
   },
 
   moveToPitch: function (key, x, y) {
@@ -392,6 +469,7 @@ var FE = {
     this.bench = this.bench.filter(function (k) { return k !== key; });
     var pos = this.calcPos(key, x, y);
     this.pitch.push({ key: key, x: x, y: y, pos: pos });
+    this.resolveCollisions(key);
   },
 
   moveToBench: function (key) {
@@ -407,6 +485,30 @@ var FE = {
       };
     }
     return pos;
+  },
+
+  // Snap the current XI to a chosen preset formation's slots (used when the
+  // formation dropdown changes inside Lineup mode). Players are mapped by slot
+  // index from the auto lineup; everyone else goes to the bench.
+  applyFormation: function (fmt) {
+    var slots = FORMATIONS[fmt] || [];
+    var lineup = window.__LINEUP__ || {};
+    var benchKeys = window.__BENCH__ || [];
+    this.pitch = [];
+    var usedKeys = {};
+    for (var i = 0; i < slots.length && i < 11; i++) {
+      var pkey = lineup[i];
+      if (pkey && ROSTER[pkey]) {
+        if (this.isGK(pkey)) {
+          this.pitch.push({ key: pkey, x: 0.50, y: 0.90, pos: 'GK' });
+        } else {
+          this.pitch.push({ key: pkey, x: slots[i].x, y: slots[i].y, pos: slots[i].pos });
+        }
+        usedKeys[pkey] = true;
+      }
+    }
+    this.bench = benchKeys.filter(function (k) { return !usedKeys[k]; });
+    this.render();
   },
 };
 

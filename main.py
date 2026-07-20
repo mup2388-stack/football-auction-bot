@@ -12,6 +12,7 @@ import os
 # Allow OAuth over HTTP for localhost — MUST be before any oauthlib imports
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
+import asyncio
 import random
 
 import discord
@@ -1962,19 +1963,26 @@ async def inactive(interaction: discord.Interaction):
 
 @bot.tree.command(description="[Admin] Cancel the auction currently running.")
 async def cancel(interaction: discord.Interaction):
-    await interaction.response.defer()
     if not is_admin(interaction.user.id):
-        await interaction.followup.send(f"{EM.e('x')} Admins only.", ephemeral=True)
+        await interaction.response.send_message(f"{EM.e('x')} Admins only.", ephemeral=True)
         return
+    await interaction.response.defer(ephemeral=True)
+    # Stop any running fast/blitz/unsold auto-drop loop
+    try:
+        _fast_auto_running[interaction.guild_id] = False
+    except Exception:
+        pass
     a = A.ACTIVE.get(interaction.guild_id)
     if not a:
-        await interaction.followup.send("No active auction.", ephemeral=True)
+        await interaction.followup.send(
+            "Auction cancelled. Auto-drop stopped (if running).", ephemeral=True)
         return
     a.status = "VOID"
     if a._task:
         a._task.cancel()
     A.ACTIVE.pop(interaction.guild_id, None)
-    await interaction.followup.send("Auction cancelled.")
+    await interaction.followup.send(
+        "Auction cancelled. Auto-drop stopped (if running).", ephemeral=True)
 
 
 # ==========================================================================
@@ -4057,6 +4065,299 @@ async def testdrop(interaction: discord.Interaction, name: str = None):
 
 
 # ==========================================================================
+#  FAST AUCTION MODE — speed up the draft
+# ==========================================================================
+_fast_auto_running = {}  # guild_id -> True/False
+
+@bot.tree.command(
+    name="fastdrop",
+    description="[Admin] Drop next player in FAST mode (non-icons 10M, icons 25M, 30s timer).",
+)
+@app_commands.autocomplete(name=player_autocomplete)
+async def fastdrop(interaction: discord.Interaction, name: str = None):
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message("Admins only.", ephemeral=True)
+        return
+    if A.is_running(interaction.guild_id):
+        await interaction.response.send_message("An auction is already running.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True)
+    gid = interaction.guild_id
+
+    if name:
+        p = P.get(name)
+        if not p:
+            results = P.search(name, limit=1)
+            p = results[0] if results else None
+        if not p:
+            await interaction.followup.send("Player not found.", ephemeral=True)
+            return
+        E.queue_consume(gid, p["key"])
+    else:
+        qkey, qcount = E.queue_next(gid)
+        if not qkey:
+            await interaction.followup.send("Queue is empty.", ephemeral=True)
+            return
+        p = P.get(qkey)
+        if not p or E.is_sold(gid, qkey):
+            E.queue_consume(gid, qkey)
+            await interaction.followup.send("Player not available.", ephemeral=True)
+            return
+
+    E.queue_consume(gid, p["key"])
+    base = "25M" if P.is_icon(p) else "10M"
+    await interaction.followup.send(
+        f"**FAST AUCTION** - {P.flag(p['country'])} {p['name']} ({p['ovr']})\n"
+        f"Base: {base} - Timer: 30s",
+        ephemeral=True,
+    )
+    a = A.Auction(gid, interaction.channel, p, interaction.user, fast_mode=True)
+    await a.start()
+
+
+@bot.tree.command(
+    name="fastauto",
+    description="[Admin] Auto-drop ALL remaining queue in FAST mode (10M/25M base, 30s each).",
+)
+async def fastauto(interaction: discord.Interaction):
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message("Admins only.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    gid = interaction.guild_id
+
+    if A.is_running(gid):
+        await interaction.followup.send("An auction is already running.", ephemeral=True)
+        return
+
+    _fast_auto_running[gid] = True
+    count = 0
+    await interaction.followup.send(
+        "**FAST AUTO-DROP STARTED** - non-icons 10M, icons 25M, 30s each. Use `/cancel` to stop.",
+        ephemeral=True,
+    )
+
+    while _fast_auto_running.get(gid):
+        if A.is_running(gid):
+            await asyncio.sleep(3)
+            continue
+        qkey, qcount = E.queue_next(gid)
+        if not qkey:
+            break
+        p = P.get(qkey)
+        if not p or E.is_sold(gid, qkey):
+            E.queue_consume(gid, qkey)
+            continue
+        # Consume NOW so a SKIP/NO-BID never re-drops the same player
+        E.queue_consume(gid, qkey)
+        count += 1
+        base = "25M" if P.is_icon(p) else "10M"
+        try:
+            await interaction.channel.send(f"# {count}\n**FAST** - {P.flag(p['country'])} {p['name']} ({p['ovr']}) - Base: {base} - 30s")
+        except Exception:
+            pass
+        a = A.Auction(gid, interaction.channel, p, interaction.user, fast_mode=True)
+        await a.start()
+        while A.is_running(gid):
+            await asyncio.sleep(2)
+
+    _fast_auto_running[gid] = False
+    try:
+        await interaction.followup.send(
+            f"# Done\n**FAST AUTO-DROP COMPLETE** - {count} players auctioned.",
+            ephemeral=True,
+        )
+    except Exception:
+        pass
+
+
+@bot.tree.command(
+    name="blitzdrop",
+    description="[Admin] Drop next player in BLITZ mode (5M base for everyone, 30s timer).",
+)
+@app_commands.autocomplete(name=player_autocomplete)
+async def blitzdrop(interaction: discord.Interaction, name: str = None):
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message("Admins only.", ephemeral=True)
+        return
+    if A.is_running(interaction.guild_id):
+        await interaction.response.send_message("An auction is already running.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True)
+    gid = interaction.guild_id
+
+    if name:
+        p = P.get(name)
+        if not p:
+            results = P.search(name, limit=1)
+            p = results[0] if results else None
+        if not p:
+            await interaction.followup.send("Player not found.", ephemeral=True)
+            return
+        E.queue_consume(gid, p["key"])
+    else:
+        qkey, qcount = E.queue_next(gid)
+        if not qkey:
+            await interaction.followup.send("Queue is empty.", ephemeral=True)
+            return
+        p = P.get(qkey)
+        if not p or E.is_sold(gid, qkey):
+            E.queue_consume(gid, qkey)
+            await interaction.followup.send("Player not available.", ephemeral=True)
+            return
+
+    E.queue_consume(gid, p["key"])
+    await interaction.followup.send(
+        f"**BLITZ AUCTION** - {P.flag(p['country'])} {p['name']} ({p['ovr']})\n"
+        f"Base: 5M - Timer: 30s",
+        ephemeral=True,
+    )
+    a = A.Auction(gid, interaction.channel, p, interaction.user, blitz_mode=True)
+    await a.start()
+
+
+@bot.tree.command(
+    name="blitzauto",
+    description="[Admin] Auto-drop ALL remaining queue in BLITZ mode (5M base, 30s each).",
+)
+async def blitzauto(interaction: discord.Interaction):
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message("Admins only.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    gid = interaction.guild_id
+
+    if A.is_running(gid):
+        await interaction.followup.send("An auction is already running.", ephemeral=True)
+        return
+
+    _fast_auto_running[gid] = True
+    count = 0
+    await interaction.followup.send(
+        "**BLITZ AUTO-DROP STARTED** - 5M base, 30s each. Use `/cancel` to stop.",
+        ephemeral=True,
+    )
+
+    while _fast_auto_running.get(gid):
+        if A.is_running(gid):
+            await asyncio.sleep(3)
+            continue
+        qkey, qcount = E.queue_next(gid)
+        if not qkey:
+            break
+        p = P.get(qkey)
+        if not p or E.is_sold(gid, qkey):
+            E.queue_consume(gid, qkey)
+            continue
+        # Consume NOW so a SKIP/NO-BID never re-drops the same player
+        E.queue_consume(gid, qkey)
+        count += 1
+        try:
+            await interaction.channel.send(f"# {count}\n**BLITZ** - {P.flag(p['country'])} {p['name']} ({p['ovr']}) - Base: 5M - 30s")
+        except Exception:
+            pass
+        a = A.Auction(gid, interaction.channel, p, interaction.user, blitz_mode=True)
+        await a.start()
+        while A.is_running(gid):
+            await asyncio.sleep(2)
+
+    _fast_auto_running[gid] = False
+    try:
+        await interaction.followup.send(
+            f"# Done\n**BLITZ AUTO-DROP COMPLETE** - {count} players auctioned.",
+            ephemeral=True,
+        )
+    except Exception:
+        pass
+
+
+@bot.tree.command(
+    name="unsoldauto",
+    description="[Admin] Auto-auction ALL unsold (skipped / no-bid) players.",
+)
+@app_commands.choices(mode=[
+    app_commands.Choice(name="Normal - full base price, 60s timer", value="normal"),
+    app_commands.Choice(name="Fast - 10M/25M base, 30s timer", value="fast"),
+    app_commands.Choice(name="Blitz - 5M base, 30s timer", value="blitz"),
+])
+async def unsoldauto(interaction: discord.Interaction,
+                     mode: app_commands.Choice[str] = None):
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message("Admins only.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    gid = interaction.guild_id
+
+    if A.is_running(gid):
+        await interaction.followup.send("An auction is already running.", ephemeral=True)
+        return
+
+    # Snapshot the unsold list ONCE so a re-skip never re-drops the same player
+    unsold = list(E.unsold_player_keys(gid))
+    if not unsold:
+        await interaction.followup.send("No unsold players to auction.", ephemeral=True)
+        return
+
+    mode_val = mode.value if mode else "fast"
+    fast_flag = mode_val == "fast"
+    blitz_flag = mode_val == "blitz"
+    mode_label = {"normal": "Normal (60s)", "fast": "Fast (30s)", "blitz": "Blitz (30s)"}[mode_val]
+
+    _fast_auto_running[gid] = True
+    count = 0
+    await interaction.followup.send(
+        f"**UNSOLD AUTO-DROP STARTED** - {len(unsold)} player(s) - {mode_label}. "
+        f"Use `/cancel` to stop.",
+        ephemeral=True,
+    )
+
+    processed = set()
+    for key in unsold:
+        if not _fast_auto_running.get(gid):
+            break
+        # Wait for any auction still running before dropping the next one
+        while A.is_running(gid) and _fast_auto_running.get(gid):
+            await asyncio.sleep(2)
+        if not _fast_auto_running.get(gid):
+            break
+        if key in processed:
+            continue
+        p = P.get(key)
+        if not p or E.is_sold(gid, key):
+            continue
+        processed.add(key)
+        count += 1
+        if blitz_flag:
+            base_line = "Base: 5M"
+        elif fast_flag:
+            base_line = "Base: 25M" if P.is_icon(p) else "Base: 10M"
+        else:
+            base_line = f"Base: {E.money(P.start_price(p['ovr'], is_icon=P.is_icon(p)))}"
+        try:
+            await interaction.channel.send(
+                f"# {count}\n**UNSOLD** - {P.flag(p['country'])} {p['name']} ({p['ovr']}) - {base_line}"
+            )
+        except Exception:
+            pass
+        a = A.Auction(gid, interaction.channel, p, interaction.user,
+                      fast_mode=fast_flag, blitz_mode=blitz_flag)
+        await a.start()
+        while A.is_running(gid) and _fast_auto_running.get(gid):
+            await asyncio.sleep(2)
+
+    _fast_auto_running[gid] = False
+    try:
+        await interaction.followup.send(
+            f"# Done\n**UNSOLD AUTO-DROP COMPLETE** - {count} player(s) auctioned.",
+            ephemeral=True,
+        )
+    except Exception:
+        pass
+
+
+# ==========================================================================
 #  HELP
 # ==========================================================================
 class AdminHelpView(discord.ui.View):
@@ -4075,11 +4376,13 @@ class AdminHelpView(discord.ui.View):
             color=C.OBSIDIAN,
         )
         e.add_field(name="Auction Control", value=(
-            "`/phase <group>` - set position day (FWD/MID/DEF/GK/ALL)\n"
+            "`/phase <group>` - set position day (FWD/MID/DEF/GK/ALL/UNSOLD)\n"
             "`/next` - drop next player (queue or top available)\n"
             "`/drop <name>` - nominate a specific player\n"
+            "`/fastauto` / `/blitzauto` - auto-drop the whole queue\n"
+            "`/unsoldauto` - auto-auction all skipped/unsold players\n"
             "`/queue <action>` - scripted list (add, bulk, shuffle)\n"
-            "`/cancel` - stop the running auction"
+            "`/cancel` - stop the running auction / auto-drop"
         ), inline=False)
         e.add_field(name="Season & League", value=(
             "`/season setup` - create a new season\n"
@@ -4160,6 +4463,94 @@ async def help(interaction: discord.Interaction):
         await interaction.followup.send(embed=e, view=AdminHelpView())
     else:
         await interaction.followup.send(embed=e)
+
+
+# ==========================================================================
+#  TRADE LOG — admin sees all trades
+# ==========================================================================
+@bot.tree.command(name="tradelog", description="[Admin] View all trades in this server.")
+@app_commands.describe(status="Filter by status (leave empty for all).")
+@app_commands.choices(status=[
+    app_commands.Choice(name="All trades", value="all"),
+    app_commands.Choice(name="Pending", value="pending"),
+    app_commands.Choice(name="Accepted", value="accepted"),
+    app_commands.Choice(name="Rejected", value="rejected"),
+])
+async def tradelog(interaction: discord.Interaction,
+                   status: app_commands.Choice[str] = None):
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message("Admin only.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    gid = interaction.guild_id
+
+    status_filter = status.value if status and status.value != "all" else None
+    with db.cursor() as c:
+        if status_filter:
+            rows = c.execute(
+                "SELECT * FROM trades WHERE guild_id=? AND status=? ORDER BY id DESC LIMIT 50",
+                (gid, status_filter),
+            ).fetchall()
+        else:
+            rows = c.execute(
+                "SELECT * FROM trades WHERE guild_id=? ORDER BY id DESC LIMIT 50",
+                (gid,),
+            ).fetchall()
+
+    if not rows:
+        await interaction.followup.send("No trades found.", ephemeral=True)
+        return
+
+    lines = []
+    for t in rows:
+        from_m = interaction.guild.get_member(t["from_user"])
+        to_m = interaction.guild.get_member(t["to_user"])
+        from_name = E.get_team_name(gid, t["from_user"]) or (from_m.display_name if from_m else f"<@{t['from_user']}>")
+        to_name = E.get_team_name(gid, t["to_user"]) or (to_m.display_name if to_m else f"<@{t['to_user']}>")
+        from_tag = EM.club_tag(from_name)
+        to_tag = EM.club_tag(to_name)
+
+        give_keys = [k for k in (t["offering"] or "").split(",") if k]
+        want_keys = [k for k in (t["requesting"] or "").split(",") if k]
+        give_str = ", ".join(P.get(k)["name"] if P.get(k) else k for k in give_keys) or "(nothing)"
+        want_str = ", ".join(P.get(k)["name"] if P.get(k) else k for k in want_keys) or "(nothing)"
+
+        cash = int(t["cash"]) if "cash" in t.keys() else 0
+        cash_str = f" + {E.money(cash)}" if cash > 0 else ""
+
+        st = t["status"]
+        st_emoji = {"accepted": "✅", "rejected": "❌", "pending": "⏳"}.get(st, "?")
+
+        lines.append(
+            f"{st_emoji} **#{t['id']}** {from_tag} → {to_tag}\n"
+            f"  Offered: {give_str}\n"
+            f"  Wanted: {want_str}{cash_str}\n"
+            f"  Status: **{st}** · {t['created_at']}"
+        )
+
+    # Split into chunks for Discord limit
+    chunks = []
+    current = ""
+    for line in lines:
+        if len(current) + len(line) > 900:
+            chunks.append(current)
+            current = ""
+        current += line + "\n\n"
+    if current:
+        chunks.append(current)
+
+    for i, chunk in enumerate(chunks):
+        embed = discord.Embed(
+            title=f"Trade Log{' (' + status_filter.title() + ')' if status_filter else ''}"
+                  f"{' (cont.)' if i > 0 else ''}",
+            description=chunk,
+            color=C.AMBER,
+        )
+        embed.set_footer(text=f"{len(rows)} trades shown · Made by mumu_111111")
+        if i == 0:
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        else:
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 # --------------------------------------------------------------------------

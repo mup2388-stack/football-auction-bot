@@ -19,8 +19,8 @@
     <option value="{{ f }}" {{ 'selected' if f == formation_name else '' }}>{{ f }}</option>
     {% endfor %}
   </select>
-  <button id="btn-edit" class="filter-btn">Edit</button>
-  <button id="btn-free-edit" class="filter-btn" style="background: var(--teal);">Free Edit</button>
+  <button id="btn-edit" class="filter-btn">Tactics</button>
+  <button id="btn-free-edit" class="filter-btn" style="background: var(--teal);">Edit Lineup</button>
   <button id="btn-save" class="filter-btn" style="display:none; background: var(--emerald);">Save</button>
   <button id="btn-cancel" class="filter-clear" style="display:none;">Cancel</button>
 </div>
@@ -79,32 +79,33 @@ window.__TACTICS_CONFIG__ = {{ tactics_config_json | safe }};
 window.__FREE_LINEUP__ = {{ free_lineup_json | safe }};
 window.__IS_OWNER__ = {{ 'true' if is_owner else 'false' }};
 </script>
-<script src="{{ url_for('static', filename='js/tactics-editor.js') }}"></script>
-<script src="{{ url_for('static', filename='js/free-edit.js') }}"></script>
+<script src="{{ url_for('static', filename='js/tactics-editor.js') }}?v={{ range(100000, 999999) | random }}"></script>
+<script src="{{ url_for('static', filename='js/free-edit.js') }}?v={{ range(100000, 999999) | random }}"></script>
 {% if is_owner %}
-<script src="{{ url_for('static', filename='js/lineup-editor.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lineup-editor.js') }}?v={{ range(100000, 999999) | random }}"></script>
 <script>
-// ===== UNIFIED EDIT MODE - one button controls formation + lineup + tactics =====
-function enterEditMode() {
+// ===== TWO MODES — Edit Lineup (formation + free drag) | Tactics =====
+function showSaveCancel() {
   document.getElementById('btn-edit').style.display = 'none';
   document.getElementById('btn-free-edit').style.display = 'none';
   document.getElementById('btn-save').style.display = '';
   document.getElementById('btn-cancel').style.display = '';
-  var sel = document.getElementById('formation-select');
-  if (sel) sel.disabled = false;
-  LE.editMode = true;
-  LE.render();
-  TC.enterEdit();
-  window.__EDIT_MODE__ = 'slot';
 }
 
-function enterFreeEditMode() {
-  document.getElementById('btn-edit').style.display = 'none';
-  document.getElementById('btn-free-edit').style.display = 'none';
-  document.getElementById('btn-save').style.display = '';
-  document.getElementById('btn-cancel').style.display = '';
+function enterLineupMode() {
+  // All lineup work in one place: formation dropdown + free drag.
+  showSaveCancel();
+  var sel = document.getElementById('formation-select');
+  if (sel) sel.disabled = false;
   FE.start();
-  window.__EDIT_MODE__ = 'free';
+  window.__EDIT_MODE__ = 'lineup';
+}
+
+function enterTacticsMode() {
+  // Tactics only — lineup / formation untouched.
+  showSaveCancel();
+  TC.enterEdit();
+  window.__EDIT_MODE__ = 'tactics';
 }
 
 function exitEditMode() {
@@ -117,30 +118,28 @@ async function saveAll() {
   btnSave.textContent = 'Saving...';
   btnSave.disabled = true;
 
-  // Build ONE payload with lineup + formation + tactics
-  var overrides = {};
-  Object.keys(LE.state).forEach(function (k) {
-    if (LE.state[k]) overrides[k] = LE.state[k];
-  });
-
-  var payload = {
-    formation: LE.currentFormation,
-    overrides: overrides,
-    tactics: TC.getTactics(),
-  };
-
-  // If in free edit mode, include free positions
-  if (window.__EDIT_MODE__ === 'free') {
-    payload.free_lineup = FE.getPositions();
-    payload.overrides = {}; // free edit ignores slot overrides
+  // Lineup uses the lineup API (formation + free positions); Tactics uses the
+  // dedicated tactics API so it never touches the saved lineup.
+  var url, body;
+  if (window.__EDIT_MODE__ === 'lineup') {
+    var sel = document.getElementById('formation-select');
+    url = '/api/lineup/' + SQUAD_USER_ID;
+    body = {
+      formation: sel ? sel.value : (LE.currentFormation || '4-3-3'),
+      free_lineup: FE.getPositions(),
+      overrides: {},
+    };
+  } else {
+    url = '/api/tactics/' + SQUAD_USER_ID;
+    body = TC.getTactics();
   }
 
   try {
-    var resp = await fetch('/api/lineup/' + SQUAD_USER_ID, {
+    var resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
 
     if (resp.status === 401) {
@@ -180,10 +179,20 @@ document.addEventListener('DOMContentLoaded', function () {
   var btnFreeEdit = document.getElementById('btn-free-edit');
   var btnSave = document.getElementById('btn-save');
   var btnCancel = document.getElementById('btn-cancel');
-  if (btnEdit) btnEdit.addEventListener('click', enterEditMode);
-  if (btnFreeEdit) btnFreeEdit.addEventListener('click', enterFreeEditMode);
+  if (btnEdit) btnEdit.addEventListener('click', enterTacticsMode);
+  if (btnFreeEdit) btnFreeEdit.addEventListener('click', enterLineupMode);
   if (btnSave) btnSave.addEventListener('click', saveAll);
   if (btnCancel) btnCancel.addEventListener('click', exitEditMode);
+  // Formation dropdown is live inside Lineup mode — snaps the XI to the
+  // chosen preset, then you can still free-drag from there.
+  var sel = document.getElementById('formation-select');
+  if (sel) {
+    sel.addEventListener('change', function () {
+      if (window.__EDIT_MODE__ === 'lineup') {
+        FE.applyFormation(sel.value);
+      }
+    });
+  }
 });
 </script>
 {% else %}

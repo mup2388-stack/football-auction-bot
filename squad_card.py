@@ -544,7 +544,7 @@ def render_squad_card(guild_id, member_name, user_id, squad, avatar_url=None):
 
         # Auto-merge: any squad player not in clean_pos gets added at their
         # formation slot position (if there's room and the slot is free)
-        all_slots = FM.all_slots(formation)
+        all_slots = FM.all_slots(FM.get_formation(formation_name))
         squad_by_key = {p["key"]: p for p in squad}
         for slot_data, player in lineup:
             if not player or player["key"] not in squad_keys:

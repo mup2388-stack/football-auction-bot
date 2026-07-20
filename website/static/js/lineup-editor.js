@@ -265,6 +265,9 @@ document.addEventListener('DOMContentLoaded', () => {
     sel.addEventListener('change', () => {
       if (!LE.editMode) return;
       LE.currentFormation = sel.value;
+      // Picking a preset formation abandons any saved free-edit layout,
+      // otherwise renderPitch() keeps showing the free positions forever.
+      LE.freePositions = null;
       LE.render();
     });
   }

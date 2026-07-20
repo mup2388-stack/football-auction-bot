@@ -2,11 +2,16 @@
 Formation definitions — FL26 tactics (14 formations).
 
 Each formation defines rows of slots. Each slot has:
-  - pos:  preferred position (LW, ST, CB, GK, etc.)
+  - pos:  preferred position (LWF, CF, CB, GK, etc.) — FL26 naming
   - side: L / C / R  (for auto-assignment + staggered layout)
   - x:    horizontal position on pitch (0.0=left, 1.0=right)
 
 These are the EXACT 14 formations available in Football Life 26.
+
+Position naming (FL26):
+  - Wingers are LWF / RWF (NOT LW / RW).
+  - The lone/central striker is CF (NOT ST).
+  - A two-forward partnership is CF + SS (left = CF, right = SS).
 """
 
 
@@ -21,7 +26,7 @@ FORMATIONS = {
         "desc": "4-2-1-3 — wingers high and wide, central midfield trio",
         "rows": [
             {"y": 0.04, "group": "FWD", "slots": [
-                _slot("LW", "L", 0.14), _slot("ST", "C", 0.50), _slot("RW", "R", 0.86)]},
+                _slot("LWF", "L", 0.14), _slot("CF", "C", 0.50), _slot("RWF", "R", 0.86)]},
             {"y": 0.36, "group": "MID", "slots": [
                 _slot("CM", "L", 0.25), _slot("CM", "C", 0.50), _slot("CM", "R", 0.75)]},
             {"y": 0.67, "group": "DEF", "slots": [
@@ -35,7 +40,7 @@ FORMATIONS = {
         "desc": "4-1-2-3 — single pivot feeding a front three",
         "rows": [
             {"y": 0.04, "group": "FWD", "slots": [
-                _slot("LW", "L", 0.14), _slot("ST", "C", 0.50), _slot("RW", "R", 0.86)]},
+                _slot("LWF", "L", 0.14), _slot("CF", "C", 0.50), _slot("RWF", "R", 0.86)]},
             {"y": 0.36, "group": "MID", "slots": [
                 _slot("CM", "L", 0.30), _slot("CM", "R", 0.70)]},
             {"y": 0.52, "group": "MID", "slots": [_slot("CDM", "C", 0.50)]},
@@ -51,9 +56,9 @@ FORMATIONS = {
         "name": "4-2-3-1",
         "desc": "4-2-3-1 — two holding mids + attacking trio behind lone striker",
         "rows": [
-            {"y": 0.02, "group": "FWD", "slots": [_slot("ST", "C", 0.50)]},
+            {"y": 0.02, "group": "FWD", "slots": [_slot("CF", "C", 0.50)]},
             {"y": 0.20, "group": "MID", "slots": [
-                _slot("LW", "L", 0.18), _slot("CAM", "C", 0.50), _slot("RW", "R", 0.82)]},
+                _slot("LWF", "L", 0.18), _slot("CAM", "C", 0.50), _slot("RWF", "R", 0.82)]},
             {"y": 0.46, "group": "MID", "slots": [
                 _slot("CDM", "L", 0.35), _slot("CDM", "R", 0.65)]},
             {"y": 0.72, "group": "DEF", "slots": [
@@ -66,7 +71,7 @@ FORMATIONS = {
         "name": "4-1-4-1",
         "desc": "4-1-4-1 — single CDM shields a flat four-man midfield",
         "rows": [
-            {"y": 0.02, "group": "FWD", "slots": [_slot("ST", "C", 0.50)]},
+            {"y": 0.02, "group": "FWD", "slots": [_slot("CF", "C", 0.50)]},
             {"y": 0.28, "group": "MID", "slots": [
                 _slot("LM", "L", 0.12), _slot("CM", "C", 0.37),
                 _slot("CM", "C", 0.63), _slot("RM", "R", 0.88)]},
@@ -81,7 +86,7 @@ FORMATIONS = {
         "name": "4-3-2-1",
         "desc": "4-3-2-1 — Christmas tree, narrow attack with two AMs",
         "rows": [
-            {"y": 0.02, "group": "FWD", "slots": [_slot("ST", "C", 0.50)]},
+            {"y": 0.02, "group": "FWD", "slots": [_slot("CF", "C", 0.50)]},
             {"y": 0.20, "group": "MID", "slots": [
                 _slot("CAM", "L", 0.35), _slot("CAM", "R", 0.65)]},
             {"y": 0.42, "group": "MID", "slots": [
@@ -99,7 +104,7 @@ FORMATIONS = {
         "desc": "4-2-2-2 — Brazilian box, two banks of two in midfield",
         "rows": [
             {"y": 0.04, "group": "FWD", "slots": [
-                _slot("ST", "L", 0.35), _slot("ST", "R", 0.65)]},
+                _slot("CF", "L", 0.35), _slot("SS", "R", 0.65)]},
             {"y": 0.24, "group": "MID", "slots": [
                 _slot("CAM", "L", 0.30), _slot("CAM", "R", 0.70)]},
             {"y": 0.44, "group": "MID", "slots": [
@@ -115,7 +120,7 @@ FORMATIONS = {
         "desc": "4-3-1-2 — narrow diamond, CAM + CDM on the spine",
         "rows": [
             {"y": 0.03, "group": "FWD", "slots": [
-                _slot("ST", "L", 0.35), _slot("ST", "R", 0.65)]},
+                _slot("CF", "L", 0.35), _slot("SS", "R", 0.65)]},
             {"y": 0.22, "group": "MID", "slots": [_slot("CAM", "C", 0.50)]},
             {"y": 0.40, "group": "MID", "slots": [
                 _slot("CM", "L", 0.30), _slot("CM", "R", 0.70)]},
@@ -132,7 +137,7 @@ FORMATIONS = {
         "name": "3-6-1",
         "desc": "3-2-4-1 — midfield overload, deep quartet behind a striker",
         "rows": [
-            {"y": 0.02, "group": "FWD", "slots": [_slot("ST", "C", 0.50)]},
+            {"y": 0.02, "group": "FWD", "slots": [_slot("CF", "C", 0.50)]},
             {"y": 0.22, "group": "MID", "slots": [
                 _slot("LM", "L", 0.12), _slot("CAM", "L", 0.35),
                 _slot("CAM", "R", 0.65), _slot("RM", "R", 0.88)]},
@@ -150,7 +155,7 @@ FORMATIONS = {
         "desc": "3-2-3-2 — three at the back, wing-backs provide width",
         "rows": [
             {"y": 0.04, "group": "FWD", "slots": [
-                _slot("ST", "L", 0.35), _slot("ST", "R", 0.65)]},
+                _slot("CF", "L", 0.35), _slot("SS", "R", 0.65)]},
             {"y": 0.34, "group": "MID", "slots": [
                 _slot("LM", "L", 0.12), _slot("CM", "C", 0.30),
                 _slot("CM", "C", 0.50), _slot("CM", "C", 0.70),
@@ -165,7 +170,7 @@ FORMATIONS = {
         "desc": "3-3-2-2 - three at the back, two shadow strikers",
         "rows": [
             {"y": 0.04, "group": "FWD", "slots": [
-                _slot("ST", "L", 0.35), _slot("ST", "R", 0.65)]},
+                _slot("CF", "L", 0.35), _slot("SS", "R", 0.65)]},
             {"y": 0.24, "group": "MID", "slots": [
                 _slot("CAM", "L", 0.30), _slot("CAM", "R", 0.70)]},
             {"y": 0.44, "group": "MID", "slots": [
@@ -182,7 +187,7 @@ FORMATIONS = {
         "desc": "3-2-2-3 — three centre-backs, attacking midfield four, front three",
         "rows": [
             {"y": 0.04, "group": "FWD", "slots": [
-                _slot("LW", "L", 0.14), _slot("ST", "C", 0.50), _slot("RW", "R", 0.86)]},
+                _slot("LWF", "L", 0.14), _slot("CF", "C", 0.50), _slot("RWF", "R", 0.86)]},
             {"y": 0.36, "group": "MID", "slots": [
                 _slot("LM", "L", 0.14), _slot("CM", "C", 0.37),
                 _slot("CM", "C", 0.63), _slot("RM", "R", 0.86)]},
@@ -197,7 +202,7 @@ FORMATIONS = {
         "name": "5-4-1",
         "desc": "5-2-2-1 — five at the back, wing-backs, lone striker",
         "rows": [
-            {"y": 0.02, "group": "FWD", "slots": [_slot("ST", "C", 0.50)]},
+            {"y": 0.02, "group": "FWD", "slots": [_slot("CF", "C", 0.50)]},
             {"y": 0.34, "group": "MID", "slots": [
                 _slot("LM", "L", 0.12), _slot("CM", "C", 0.38),
                 _slot("CM", "C", 0.62), _slot("RM", "R", 0.88)]},
@@ -214,7 +219,7 @@ FORMATIONS = {
         "desc": "5-2-1-2 — five back, CAM behind two strikers, counter shape",
         "rows": [
             {"y": 0.04, "group": "FWD", "slots": [
-                _slot("ST", "L", 0.35), _slot("ST", "R", 0.65)]},
+                _slot("CF", "L", 0.35), _slot("SS", "R", 0.65)]},
             {"y": 0.24, "group": "MID", "slots": [_slot("CAM", "C", 0.50)]},
             {"y": 0.42, "group": "MID", "slots": [
                 _slot("CM", "L", 0.32), _slot("CM", "R", 0.68)]},
@@ -229,7 +234,7 @@ FORMATIONS = {
         "desc": "5-3-2 — five defenders, flat midfield three, two strikers",
         "rows": [
             {"y": 0.04, "group": "FWD", "slots": [
-                _slot("ST", "L", 0.35), _slot("ST", "R", 0.65)]},
+                _slot("CF", "L", 0.35), _slot("SS", "R", 0.65)]},
             {"y": 0.36, "group": "MID", "slots": [
                 _slot("CM", "L", 0.25), _slot("CM", "C", 0.50), _slot("CM", "R", 0.75)]},
             {"y": 0.68, "group": "DEF", "slots": [
@@ -290,8 +295,8 @@ def all_slots(formation):
 
 def position_side(pos):
     """Determine L/C/R side from a position string."""
-    left = {"LB","LWB","LW","LM","LF","LS","LCB","LCM","LAM","LDM"}
-    right = {"RB","RWB","RW","RM","RF","RS","RCB","RCM","RAM","RDM"}
+    left = {"LB", "LWB", "LW", "LWF", "LM", "LF", "LS", "LCB", "LCM", "LAM", "LDM"}
+    right = {"RB", "RWB", "RW", "RWF", "RM", "RF", "RS", "RCB", "RCM", "RAM", "RDM"}
     if pos in left:
         return "L"
     if pos in right:
@@ -300,20 +305,26 @@ def position_side(pos):
 
 
 # Secondary positions: positions that can fill a slot if the primary isn't available.
+# NOTE: formation slots now use FL26 labels (LWF/RWF/CF/SS); the player DATA still
+# uses LW/RW/ST/CF, so each FL26 slot falls back through the data labels it can take.
 POS_ALTERNATIVES = {
-    # FWD
-    "LW": ["LW", "LM", "LF", "RW", "ST", "CF"],
-    "RW": ["RW", "RM", "RF", "LW", "ST", "CF"],
-    "ST": ["ST", "CF", "LW", "RW", "LS", "RS"],
-    "CF": ["CF", "ST", "CAM", "LW", "RW"],
+    # FWD (FL26 slot labels)
+    "LWF": ["LWF", "LW", "LM", "LF", "RW", "RWF", "ST", "CF"],
+    "RWF": ["RWF", "RW", "RM", "RF", "LW", "LWF", "ST", "CF"],
+    "CF": ["CF", "ST", "CAM", "SS", "LW", "RW"],
+    "SS": ["SS", "CF", "ST", "CAM", "LW", "RW"],
+    # FWD (legacy data labels — kept so anything still keyed on them works)
+    "LW": ["LW", "LWF", "LM", "LF", "RW", "ST", "CF"],
+    "RW": ["RW", "RWF", "RM", "RF", "LW", "ST", "CF"],
+    "ST": ["ST", "CF", "SS", "LW", "RW", "LS", "RS"],
     "LS": ["LS", "ST", "LW", "LF"],
     "RS": ["RS", "ST", "RW", "RF"],
     # MID
-    "CAM": ["CAM", "CM", "CF", "LW", "RW"],
+    "CAM": ["CAM", "CM", "CF", "SS", "LW", "RW"],
     "CM": ["CM", "CAM", "CDM", "LM", "RM"],
     "CDM": ["CDM", "CM", "CB"],
-    "LM": ["LM", "LW", "CM", "RM"],
-    "RM": ["RM", "RW", "CM", "LM"],
+    "LM": ["LM", "LW", "LWF", "CM", "RM"],
+    "RM": ["RM", "RW", "RWF", "CM", "LM"],
     "LAM": ["LAM", "CAM", "LM", "CM"],
     "RAM": ["RAM", "CAM", "RM", "CM"],
     "LCM": ["LCM", "CM", "CDM", "CAM"],
@@ -360,11 +371,18 @@ def auto_assign_lineup(squad, formation):
             if p["position"] == preferred:
                 assigned = p
                 break
-        # 2) Alternative positions
+        # 2) Alternative positions — respect alt PRIORITY order so a striker
+        #    never steals a wing slot from a winger. For each alt position (in
+        #    order), grab the best OVR player with that exact position.
         if not assigned:
-            for p in pool:
-                if p["position"] in alts:
-                    assigned = p
+            for alt_pos in alts:
+                if alt_pos == preferred:
+                    continue
+                for p in pool:
+                    if p["position"] == alt_pos:
+                        assigned = p
+                        break
+                if assigned:
                     break
         # 3) Same side
         if not assigned:
