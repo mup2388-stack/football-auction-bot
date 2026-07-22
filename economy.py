@@ -1354,27 +1354,27 @@ def get_player_stats(guild_id: int, player_key: str, season_id: int = None) -> d
     if row:
         return dict(row)
     return {
-        "matches": 0, "goals": 0, "assists": 0, "tackles": 0,
-        "saves": 0, "motm": 0, "yellow_cards": 0, "red_cards": 0,
+        "matches": 0, "goals": 0, "assists": 0, "motm": 0,
+        "yellow_cards": 0, "red_cards": 0, "clean_sheets": 0,
     }
 
 
 def add_player_stats(guild_id: int, player_key: str, goals=0, assists=0,
-                     tackles=0, saves=0, motm=0, yellow=0, red=0,
+                     motm=0, yellow=0, red=0, clean_sheets=0,
                      season_id: int = None):
     """Add match stats to a player for a specific season."""
     with db.cursor() as c:
         c.execute(
             "INSERT INTO player_match_stats (guild_id, season_id, player_key, "
-            "matches, goals, assists, tackles, saves, motm, yellow_cards, red_cards) "
-            "VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?) "
+            "matches, goals, assists, motm, yellow_cards, red_cards, clean_sheets) "
+            "VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(guild_id, season_id, player_key) DO UPDATE SET "
             "matches=matches+1, goals=goals+?, assists=assists+?, "
-            "tackles=tackles+?, saves=saves+?, motm=motm+?, "
-            "yellow_cards=yellow_cards+?, red_cards=red_cards+?",
+            "motm=motm+?, yellow_cards=yellow_cards+?, red_cards=red_cards+?, "
+            "clean_sheets=clean_sheets+?",
             (guild_id, season_id, player_key,
-             goals, assists, tackles, saves, motm, yellow, red,
-             goals, assists, tackles, saves, motm, yellow, red),
+             goals, assists, motm, yellow, red, clean_sheets,
+             goals, assists, motm, yellow, red, clean_sheets),
         )
 
 
@@ -1382,10 +1382,10 @@ def get_squad_match_stats(guild_id: int, user_id: int, season_id: int = None) ->
     """Aggregate match stats for an entire squad (optionally per season)."""
     squad = get_squad(guild_id, user_id)
     if not squad:
-        return {"matches": 0, "goals": 0, "assists": 0, "tackles": 0,
-                "saves": 0, "motm": 0, "yellow_cards": 0, "red_cards": 0}
-    agg = {"matches": 0, "goals": 0, "assists": 0, "tackles": 0,
-           "saves": 0, "motm": 0, "yellow_cards": 0, "red_cards": 0}
+        return {"matches": 0, "goals": 0, "assists": 0, "motm": 0,
+                "yellow_cards": 0, "red_cards": 0, "clean_sheets": 0}
+    agg = {"matches": 0, "goals": 0, "assists": 0, "motm": 0,
+           "yellow_cards": 0, "red_cards": 0, "clean_sheets": 0}
     for p in squad:
         stats = get_player_stats(guild_id, p["key"], season_id=season_id)
         for k in agg:

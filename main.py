@@ -367,6 +367,7 @@ async def squad(interaction: discord.Interaction, user: discord.Member = None):
             f"{EM.e('stat_goals')} Goals **{squad_stats['goals']}**  "
             f"{EM.e('stat_assists')} Assists **{squad_stats['assists']}**\n"
             f"{EM.e('stat_motm')} MOTM **{squad_stats['motm']}**  "
+            f"Clean Sheets **{squad_stats.get('clean_sheets', 0)}**  "
             f"{EM.e('stat_yellow')} Yellows **{squad_stats['yellow_cards']}**  "
             f"{EM.e('stat_red')} Reds **{squad_stats['red_cards']}**"
         ), inline=False)
@@ -454,8 +455,7 @@ async def playerstats(interaction: discord.Interaction, name: str):
     e.add_field(name=f"{EM.e('stat_goals')} Goals", value=str(stats["goals"]))
     e.add_field(name=f"{EM.e('stat_assists')} Assists", value=str(stats["assists"]))
     e.add_field(name=f"{EM.e('stat_motm')} MOTM", value=str(stats["motm"]))
-    e.add_field(name=f"{EM.e('stat_tackles')} Tackles", value=str(stats["tackles"]))
-    e.add_field(name=f"{EM.e('stat_saves')} Saves", value=str(stats["saves"]))
+    e.add_field(name="Clean Sheets", value=str(stats.get("clean_sheets", 0)))
     e.add_field(name=f"{EM.e('stat_yellow')} Yellow", value=str(stats["yellow_cards"]))
     e.add_field(name=f"{EM.e('stat_red')} Red", value=str(stats["red_cards"]))
 
@@ -1005,16 +1005,16 @@ async def setface(interaction: discord.Interaction, name: str, url: str):
     player="Player to update.",
     goals="Goals scored this match.",
     assists="Assists this match.",
-    tackles="Tackles this match.",
-    saves="Saves this match (GK).",
     motm="Man of the Match? (1=yes, 0=no).",
     yellow="Yellow cards this match.",
     red="Red cards this match.",
+    clean_sheets="Clean sheet? (1=yes, 0=no).",
 )
 @app_commands.autocomplete(player=player_autocomplete)
 async def updatestats(interaction: discord.Interaction, player: str,
-                      goals: int = 0, assists: int = 0, tackles: int = 0,
-                      saves: int = 0, motm: int = 0, yellow: int = 0, red: int = 0):
+                      goals: int = 0, assists: int = 0,
+                      motm: int = 0, yellow: int = 0, red: int = 0,
+                      clean_sheets: int = 0):
     await interaction.response.defer()
     if not is_admin(interaction.user.id):
         await interaction.followup.send("Admins only.", ephemeral=True)
@@ -1026,17 +1026,16 @@ async def updatestats(interaction: discord.Interaction, player: str,
     _s = L.active_season(interaction.guild_id)
     _sid = _s["id"] if _s else None
     E.add_player_stats(interaction.guild_id, player,
-                       goals=goals, assists=assists, tackles=tackles,
-                       saves=saves, motm=motm, yellow=yellow, red=red,
+                       goals=goals, assists=assists, motm=motm,
+                       yellow=yellow, red=red, clean_sheets=clean_sheets,
                        season_id=_sid)
     stat_str = []
     if goals: stat_str.append(f"{EM.e('stat_goals')}{goals}")
     if assists: stat_str.append(f"{EM.e('stat_assists')}{assists}")
-    if tackles: stat_str.append(f"{EM.e('stat_tackles')}{tackles}")
-    if saves: stat_str.append(f"{EM.e('stat_saves')}{saves}")
     if motm: stat_str.append(f"{EM.e('stat_motm')}MOTM")
     if yellow: stat_str.append(f"{EM.e('stat_yellow')}{yellow}")
     if red: stat_str.append(f"{EM.e('stat_red')}{red}")
+    if clean_sheets: stat_str.append("CS")
     summary = "  ".join(stat_str) if stat_str else "1 appearance"
     total = E.get_player_stats(interaction.guild_id, player, season_id=_sid)
     await interaction.followup.send(
@@ -3514,8 +3513,6 @@ class QuickResultView(discord.ui.View):
         self.steps.append(("assists", self.home_user, self.home_score))
         if self.away_score > 0:
             self.steps.append(("assists", self.away_user, self.away_score))
-        self.steps.append(("tackles", self.home_user, None))
-        self.steps.append(("tackles", self.away_user, None))
         self.steps.append(("yellow", self.home_user, None))
         self.steps.append(("yellow", self.away_user, None))
         self.steps.append(("red", self.home_user, None))
@@ -3533,8 +3530,8 @@ class QuickResultView(discord.ui.View):
 
     def _get(self, key):
         if key not in self.stats:
-            self.stats[key] = {"goals": 0, "assists": 0, "tackles": 0,
-                               "yellow": 0, "red": 0, "motm": 0}
+            self.stats[key] = {"goals": 0, "assists": 0,
+                               "yellow": 0, "red": 0, "motm": 0, "clean_sheets": 0}
         return self.stats[key]
 
     def _count(self, stat, uid=None):
@@ -3565,7 +3562,6 @@ class QuickResultView(discord.ui.View):
         stat, uid, limit = self.steps[self.step_idx]
         stat_labels = {"goals": f"{EM.e('stat_goals')} GOAL SCORERS",
                       "assists": f"{EM.e('stat_assists')} ASSISTERS",
-                      "tackles": f"{EM.e('stat_tackles')} TACKLES",
                       "yellow": f"{EM.e('stat_yellow')} YELLOW CARDS",
                       "red": f"{EM.e('stat_red')} RED CARDS",
                       "motm": f"{EM.e('stat_motm')} MAN OF THE MATCH"}
@@ -3749,10 +3745,10 @@ class QuickResultView(discord.ui.View):
             parts = []
             if s["goals"]: parts.append(f"{EM.e('stat_goals')}{s['goals']}")
             if s["assists"]: parts.append(f"{EM.e('stat_assists')}{s['assists']}")
-            if s["tackles"]: parts.append(f"{EM.e('stat_tackles')}{s['tackles']}")
             if s["yellow"]: parts.append(f"{EM.e('stat_yellow')}{s['yellow']}")
             if s["red"]: parts.append(f"{EM.e('stat_red')}{s['red']}")
             if s["motm"]: parts.append(f"{EM.e('stat_motm')}MOTM")
+            if s["clean_sheets"]: parts.append("CS")
             if parts:
                 lines.append(f"  {p['name']}: {' '.join(parts)}")
                 any_stats = True
@@ -3775,11 +3771,26 @@ class QuickResultView(discord.ui.View):
         self.add_item(cancel)
 
     async def _save(self, interaction):
+        # Clean sheets: a team keeps one when they concede 0.
+        # Home concedes away_score, away concedes home_score. Award to that
+        # team's GK (auto-detected from the squad).
+        def _award_cs(uid):
+            # Entire backline: GK + every defender in the starting XI
+            lineup, _ = E.get_lineup(self.guild_id, uid)
+            for slot, p in lineup:
+                if p and p.get("group") in ("GK", "DEF"):
+                    self._get(p["key"])["clean_sheets"] += 1
+        if self.away_score == 0:
+            _award_cs(self.home_user)
+        if self.home_score == 0:
+            _award_cs(self.away_user)
+
         for key, s in self.stats.items():
             if any(s.values()):
                 E.add_player_stats(self.guild_id, key,
-                    goals=s["goals"], assists=s["assists"], tackles=s["tackles"],
-                    saves=0, motm=s["motm"], yellow=s["yellow"], red=s["red"],
+                    goals=s["goals"], assists=s["assists"],
+                    motm=s["motm"], yellow=s["yellow"], red=s["red"],
+                    clean_sheets=s.get("clean_sheets", 0),
                     season_id=self.season_id)
 
         msg = self._review_text()
@@ -3946,14 +3957,12 @@ async def importmatch(interaction: discord.Interaction,
 
             goals = int(row.get("goals", 0) or 0)
             assists = int(row.get("assists", 0) or 0)
-            tackles = int(row.get("tackles", 0) or 0)
-            saves = int(row.get("saves", 0) or 0)
             motm = int(row.get("motm", 0) or 0)
             yellow = int(row.get("yellow", 0) or 0)
             red = int(row.get("red", 0) or 0)
 
             # Skip if all zeros (player didn't do anything notable but still played)
-            if goals + assists + tackles + saves + motm + yellow + red == 0:
+            if goals + assists + motm + yellow + red == 0:
                 # Still add an appearance
                 pass
 
@@ -3979,8 +3988,8 @@ async def importmatch(interaction: discord.Interaction,
                 _imp_sid = _imp_s["id"] if _imp_s else None
                 E.add_player_stats(
                     interaction.guild_id, player["key"],
-                    goals=goals, assists=assists, tackles=tackles,
-                    saves=saves, motm=motm, yellow=yellow, red=red,
+                    goals=goals, assists=assists, motm=motm,
+                    yellow=yellow, red=red,
                     season_id=_imp_sid,
                 )
                 updated += 1
@@ -4358,6 +4367,449 @@ async def unsoldauto(interaction: discord.Interaction,
 
 
 # ==========================================================================
+#  AUTO-FILL incomplete squads (unsold list only) + surgical undo
+# ==========================================================================
+
+def _ensure_autofill_table():
+    with db.cursor() as c:
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS autofill_log ("
+            "guild_id INTEGER, run_id INTEGER, user_id INTEGER, "
+            "player_key TEXT, charged INTEGER, added_at TEXT)"
+        )
+
+
+@bot.tree.command(
+    name="autofill",
+    description="[Admin] Fill squads with <15 players using random UNSOLD players. Sends a breakdown .txt.",
+)
+async def autofill(interaction: discord.Interaction):
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message("Admins only.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    import io
+    import random
+    from collections import defaultdict
+    gid = interaction.guild_id
+    _ensure_autofill_table()
+
+    s = L.active_season(gid)
+    if not s:
+        await interaction.followup.send("No active season.", ephemeral=True)
+        return
+    sid = s["id"]
+
+    # ---- snapshot the UNSOLD list only (never the whole DB) ----
+    sold = E.sold_player_keys(gid)
+    pool = defaultdict(list)  # group -> [[ovr, key], ...]
+    for k in E.unsold_player_keys(gid):
+        if k in sold:
+            continue
+        p = P.get(k)
+        if p:
+            pool[p["group"]].append([p["ovr"], k])
+
+    def take(group, pred):
+        lst = pool.get(group)
+        if not lst:
+            return None
+        idxs = [i for i, rec in enumerate(lst) if pred(rec[0])]
+        if not idxs:
+            return None
+        return lst.pop(random.choice(idxs))[1]
+
+    def take_any_group(group):
+        lst = pool.get(group)
+        if not lst:
+            return None
+        return lst.pop(random.randrange(len(lst)))[1]
+
+    def take_any():
+        for g in list(pool.keys()):
+            if pool[g]:
+                return pool[g].pop(random.randrange(len(pool[g])))[1]
+        return None
+
+    REQ = {"GK": 2, "DEF": 5, "MID": 5, "FWD": 3}
+    teams = L.teams(sid)
+
+    with db.cursor() as c:
+        rr = c.execute("SELECT MAX(run_id) AS m FROM autofill_log WHERE guild_id=?", (gid,)).fetchone()
+    run_id = (rr["m"] or 0) + 1 if rr else 1
+
+    assignments = []          # (uid, key, position, charged)
+    charge_by_user = defaultdict(int)
+    report = []               # (team_name, before, after, entries, got_high)
+    shortfalls = []           # (team_name, count)
+    teams_done = 0
+    players_added = 0
+
+    for t in teams:
+        uid = t["user_id"]
+        squad = E.get_squad(gid, uid)
+        counts = defaultdict(int)
+        for p in squad:
+            counts[p["group"]] += 1
+        before = len(squad)
+        if before >= 15:
+            continue  # never touch complete teams
+
+        slots = 15 - before
+        short = {g: max(0, REQ[g] - counts[g]) for g in REQ}
+        needs = []
+        for g in sorted(REQ, key=lambda x: short[x], reverse=True):
+            needs.extend([g] * short[g])
+        needs = needs[:slots]  # cap at the real number of empty slots
+
+        E.ensure_user(gid, uid)
+        bal = E.get_balance(gid, uid)
+        team_name = E.get_team_name(gid, uid) or t.get("team_name") or f"Manager {uid}"
+
+        entries = []
+        high_given = False
+        for grp in needs:
+            key = None
+            # one high-rated (>=82) per team, only into a slot they actually need
+            if not high_given:
+                key = take(grp, lambda o: o >= 82)
+                if key:
+                    high_given = True
+            # bulk: 78-80 band
+            if not key:
+                key = take(grp, lambda o: 78 <= o <= 80)
+            # shortfall fallback: any unsold in this group, then any unsold at all
+            if not key:
+                key = take_any_group(grp)
+            if not key:
+                key = take_any()
+            if not key:
+                entries.append(("SKIP", grp))
+                continue
+            charged = 6_000_000 if bal >= 6_000_000 else 0
+            if charged:
+                bal -= charged
+                charge_by_user[uid] += charged
+            p = P.get(key)
+            assignments.append((uid, key, p["position"], charged))
+            entries.append((key, p["name"], p["position"], p["ovr"], charged))
+            players_added += 1
+
+        added = sum(1 for e in entries if e[0] != "SKIP")
+        report.append((team_name, before, before + added, entries, high_given))
+        sk = sum(1 for e in entries if e[0] == "SKIP")
+        if sk:
+            shortfalls.append((team_name, sk))
+        teams_done += 1
+
+    # ---- commit: batched squad inserts + batched log + per-team balances ----
+    if assignments:
+        all_keys = [k for (_, k, _, _) in assignments]
+        try:
+            with db.cursor() as c:
+                for start in range(0, len(assignments), 80):
+                    chunk = assignments[start:start + 80]
+                    ph = ",".join(["(?,?,?,?,?)"] * len(chunk))
+                    params = []
+                    for uid, key, pos, charged in chunk:
+                        params.extend([gid, uid, key, pos, charged])
+                    c.execute(
+                        "INSERT OR REPLACE INTO squads (guild_id, user_id, player_key, position, acquired_price) "
+                        "VALUES " + ph, tuple(params),
+                    )
+                for start in range(0, len(assignments), 80):
+                    chunk = assignments[start:start + 80]
+                    ph = ",".join(["(?,?,?,?,?,datetime('now'))"] * len(chunk))
+                    params = []
+                    for uid, key, pos, charged in chunk:
+                        params.extend([gid, run_id, uid, key, charged])
+                    c.execute(
+                        "INSERT INTO autofill_log (guild_id, run_id, user_id, player_key, charged, added_at) "
+                        "VALUES " + ph, tuple(params),
+                    )
+        except Exception as ex:
+            # Turso auto-commits each execute, so a mid-block failure can orphan
+            # squad rows. Roll back everything we just wrote so we never leave a
+            # half-filled, uncharged, unlogged state.
+            try:
+                with db.cursor() as c:
+                    c.execute("DELETE FROM autofill_log WHERE guild_id=? AND run_id=?", (gid, run_id))
+                    for start in range(0, len(all_keys), 80):
+                        chunk = all_keys[start:start + 80]
+                        ph = ",".join(["?"] * len(chunk))
+                        c.execute(
+                            "DELETE FROM squads WHERE guild_id=? AND player_key IN (" + ph + ")",
+                            tuple([gid] + chunk),
+                        )
+            except Exception:
+                pass
+            await interaction.followup.send(
+                f"Autofill failed while saving and was rolled back. Nothing was kept.\nError: {ex}\n"
+                f"Try `/autofill` again, or `/autofillcleanup` if anything looks stuck.",
+                ephemeral=True,
+            )
+            return
+        for uid, amt in charge_by_user.items():
+            E.adjust_balance(gid, uid, -amt)
+
+    if teams_done == 0:
+        await interaction.followup.send("Every team already has 15 players. Nothing to fill.", ephemeral=True)
+        return
+
+    # ---- build the .txt breakdown ----
+    def bucket(n):
+        if n == 0:
+            return "GHOST TEAMS (0 players before)"
+        if n <= 4:
+            return "1-4 PLAYERS BEFORE"
+        if n <= 9:
+            return "5-9 PLAYERS BEFORE"
+        return "10-14 PLAYERS BEFORE"
+
+    order = ["GHOST TEAMS (0 players before)", "1-4 PLAYERS BEFORE",
+             "5-9 PLAYERS BEFORE", "10-14 PLAYERS BEFORE"]
+    grouped = {b: [] for b in order}
+    for team_name, before, after, entries, got_high in report:
+        grouped[bucket(before)].append((team_name, before, after, entries, got_high))
+
+    lines = []
+    lines.append("AUTO-FILL REPORT")
+    lines.append("=" * 62)
+    lines.append(f"Run #{run_id}   Source: UNSOLD list only   Price: 6M each (free if unaffordable)")
+    lines.append(f"Teams filled: {teams_done}   Players added: {players_added}")
+    lines.append("Undo with: /autofillundo")
+    lines.append("")
+    for b in order:
+        if not grouped[b]:
+            continue
+        lines.append("")
+        lines.append("=" * 10 + " " + b + " " + "=" * 10)
+        lines.append("")
+        for team_name, before, after, entries, got_high in grouped[b]:
+            hi = "   [high-rated added]" if got_high else ""
+            lines.append(f"{team_name.upper()}   had {before}, filled {after - before}, now {after}{hi}")
+            n = 0
+            for e in entries:
+                n += 1
+                if e[0] == "SKIP":
+                    lines.append(f"    {n:>2}. --- NOT FILLED (no unsold player for {e[1]}) ---")
+                else:
+                    _, name, pos, ovr, charged = e
+                    price = "6M" if charged else "free"
+                    star = " *" if ovr >= 82 else ""
+                    lines.append(f"    {n:>2}. {name:<26} {pos:<4} {ovr:>2}   {price}{star}")
+            lines.append("")
+    lines.append("=" * 10 + " SHORTFALLS " + "=" * 10)
+    if shortfalls:
+        for tn, sk in shortfalls:
+            lines.append(f"   {tn.upper()}: {sk} slot(s) couldn't be filled (unsold list ran out)")
+    else:
+        lines.append("   (none)")
+    lines.append("")
+
+    buf = io.BytesIO("\n".join(lines).encode("utf-8"))
+    file = discord.File(buf, filename=f"autofill_run{run_id}.txt")
+
+    e = discord.Embed(
+        title="Auto-fill complete",
+        description=(f"Filled **{teams_done}** incomplete team(s) with **{players_added}** "
+                     f"players from the unsold list. Run **#{run_id}**. Undo: `/autofillundo`."),
+        color=C.EMERALD,
+    )
+    if shortfalls:
+        e.add_field(name="Shortfalls", value=f"{sum(s for _, s in shortfalls)} slot(s) couldn't be filled.", inline=False)
+    await interaction.followup.send(embed=e, file=file, ephemeral=True)
+
+
+@bot.tree.command(
+    name="autofillundo",
+    description="[Admin] Undo the LAST /autofill only — removes the players it added, refunds charges.",
+)
+async def autofillundo(interaction: discord.Interaction):
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message("Admins only.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    from collections import defaultdict
+    gid = interaction.guild_id
+    _ensure_autofill_table()
+
+    with db.cursor() as c:
+        rr = c.execute("SELECT MAX(run_id) AS m FROM autofill_log WHERE guild_id=?", (gid,)).fetchone()
+    run_id = rr["m"] if rr else None
+    if not run_id:
+        await interaction.followup.send("No autofill run to undo.", ephemeral=True)
+        return
+
+    with db.cursor() as c:
+        rows = c.execute(
+            "SELECT user_id, player_key, charged FROM autofill_log WHERE guild_id=? AND run_id=?",
+            (gid, run_id),
+        ).fetchall()
+
+    refund_by_user = defaultdict(int)
+    removed = 0
+    not_present = 0
+    with db.cursor() as c:
+        for r in rows:
+            uid = r["user_id"]
+            key = r["player_key"]
+            charged = r["charged"] or 0
+            exists = c.execute(
+                "SELECT 1 FROM squads WHERE guild_id=? AND user_id=? AND player_key=?",
+                (gid, uid, key),
+            ).fetchone()
+            if exists:
+                # remove ONLY if still on the same team it was filled into
+                c.execute(
+                    "DELETE FROM squads WHERE guild_id=? AND user_id=? AND player_key=?",
+                    (gid, uid, key),
+                )
+                removed += 1
+                if charged:
+                    refund_by_user[uid] += charged
+            else:
+                not_present += 1
+        c.execute("DELETE FROM autofill_log WHERE guild_id=? AND run_id=?", (gid, run_id))
+
+    for uid, amt in refund_by_user.items():
+        if amt:
+            E.adjust_balance(gid, uid, amt)
+
+    refunded = sum(refund_by_user.values())
+    e = discord.Embed(
+        title=f"Undid autofill run #{run_id}",
+        description=(f"Removed **{removed}** player(s) added by that run. "
+                     f"Refunded **{E.money(refunded)}**."),
+        color=C.AMBER,
+    )
+    if not_present:
+        e.add_field(
+            name="Note",
+            value=(f"{not_present} player(s) were no longer on the original team "
+                   f"(traded/dumped since) and were left untouched."),
+            inline=False,
+        )
+    await interaction.followup.send(embed=e, ephemeral=True)
+
+
+@bot.tree.command(
+    name="autofillcleanup",
+    description="[Admin] Remove leftover autofill players and show each team's pre-fill count.",
+)
+async def autofillcleanup(interaction: discord.Interaction):
+    """The failed autofill committed squad rows but no log. Those orphaned
+    players are 'owned AND still in the unsold list' (real sales log 'sold' and
+    leave the unsold list). So pre-fill count = current squad size - orphans on
+    that team. This reports that breakdown, then removes the orphans."""
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message("Admins only.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    import io
+    gid = interaction.guild_id
+
+    owned = E.sold_player_keys(gid)
+    orphans = owned & E.unsold_player_keys(gid)
+    if not orphans:
+        await interaction.followup.send(
+            "No orphaned autofill players found. Squads already reflect only real auction results.",
+            ephemeral=True,
+        )
+        return
+
+    keys = list(orphans)
+    # map each orphan -> its current owner
+    owner_of = {}
+    with db.cursor() as c:
+        for start in range(0, len(keys), 80):
+            chunk = keys[start:start + 80]
+            ph = ",".join(["?"] * len(chunk))
+            rows = c.execute(
+                "SELECT user_id, player_key FROM squads WHERE guild_id=? AND player_key IN (" + ph + ")",
+                tuple([gid] + chunk),
+            ).fetchall()
+            for r in rows:
+                owner_of[r["player_key"]] = r["user_id"]
+
+    s = L.active_season(gid)
+    sid = s["id"] if s else None
+    season_uids = set()
+    if sid:
+        for t in L.teams(sid):
+            season_uids.add(t["user_id"])
+    all_uids = season_uids | set(owner_of.values())
+
+    rows_data = []  # (team_name, pre, current, removed)
+    for uid in all_uids:
+        squad = E.get_squad(gid, uid)
+        current = len(squad)
+        removed = sum(1 for p in squad if p["key"] in orphans)
+        if removed == 0 and uid not in season_uids:
+            continue
+        pre = current - removed
+        team_name = E.get_team_name(gid, uid) or f"Manager {uid}"
+        rows_data.append((team_name, pre, current, removed))
+
+    def bucket(pre):
+        if pre >= 15:
+            return "ALREADY COMPLETE (15)"
+        if pre == 0:
+            return "GHOST (0 players before)"
+        if pre <= 4:
+            return "1-4 PLAYERS BEFORE"
+        if pre <= 9:
+            return "5-9 PLAYERS BEFORE"
+        return "10-14 PLAYERS BEFORE"
+
+    order = ["GHOST (0 players before)", "1-4 PLAYERS BEFORE",
+             "5-9 PLAYERS BEFORE", "10-14 PLAYERS BEFORE", "ALREADY COMPLETE (15)"]
+    grouped = {b: [] for b in order}
+    for team_name, pre, current, removed in rows_data:
+        grouped[bucket(pre)].append((team_name, pre, current, removed))
+
+    lines = []
+    lines.append("PRE-FILL BREAKDOWN  (players each team had BEFORE autofill)")
+    lines.append("=" * 62)
+    lines.append(f"Orphaned autofill players detected: {len(orphans)}")
+    lines.append("'had' = squad size before the failed autofill (= now minus orphans).")
+    lines.append("")
+    for b in order:
+        items = grouped[b]
+        if not items:
+            continue
+        lines.append("")
+        lines.append("=" * 12 + " " + b + " " + "=" * 12)
+        lines.append("")
+        for team_name, pre, current, removed in sorted(items, key=lambda x: x[1]):
+            tag = f"   (now {current}, removing {removed})" if removed else ""
+            lines.append(f"   {team_name.upper():<30} had {pre}{tag}")
+        lines.append("")
+
+    # remove the orphans + clear any half-written log
+    with db.cursor() as c:
+        for start in range(0, len(keys), 80):
+            chunk = keys[start:start + 80]
+            ph = ",".join(["?"] * len(chunk))
+            c.execute(
+                "DELETE FROM squads WHERE guild_id=? AND player_key IN (" + ph + ")",
+                tuple([gid] + chunk),
+            )
+        c.execute("DELETE FROM autofill_log WHERE guild_id=?", (gid,))
+
+    buf = io.BytesIO("\n".join(lines).encode("utf-8"))
+    file = discord.File(buf, filename="prefill_breakdown.txt")
+
+    e = discord.Embed(
+        title="Cleanup done",
+        description=(f"Removed **{len(orphans)}** orphaned autofill player(s). "
+                     f"Squads are back to their pre-fill state. Re-run `/autofill` for a clean fill."),
+        color=C.AMBER,
+    )
+    await interaction.followup.send(embed=e, file=file, ephemeral=True)
+
+
+# ==========================================================================
 #  HELP
 # ==========================================================================
 class AdminHelpView(discord.ui.View):
@@ -4400,6 +4852,9 @@ class AdminHelpView(discord.ui.View):
         ), inline=False)
         e.add_field(name="Manager & Economy", value=(
             "`/give @user <amount>` - grant budget\n"
+            "`/autofill` - fill incomplete squads (<15) from the unsold list + .txt report\n"
+            "`/autofillundo` - undo the last /autofill only\n"
+            "`/autofillcleanup` - emergency: remove orphaned fill players after a failed run\n"
             "`/reset @user` - reset a manager\n"
             "`/resetall` - reset everyone\n"
             "`/toggletrades <true/false>` - enable/disable trades\n"
